@@ -1,44 +1,82 @@
 SHELL := /bin/bash
 
-.PHONY: doctor compose-up compose-down logs smoke fmt lint fix test precommit
+COMPOSE ?= docker compose
+API_SERVICE ?= api-gateway
+PYTHON ?= python3
+
+.PHONY: \
+	doctor up down ps logs migrate smoke reset-db \
+	compose-up compose-down \
+	fmt lint fix test \
+	cycle cycle-autofix \
+	openapi-gen openapi-check
 
 doctor:
 	@echo "== docker ==" && docker version >/dev/null && echo "OK"
-	@echo "== compose config ==" && docker compose config >/dev/null && echo "OK"
-
-compose-up:
-	docker compose up -d --build
-
-compose-down:
-	docker compose down --remove-orphans
-
-.PHONY: up down ps logs migrate smoke reset-db
+	@echo "== compose config ==" && $(COMPOSE) config >/dev/null && echo "OK"
 
 up:
-	docker compose up -d --build
+	$(COMPOSE) up -d --build
 
 down:
-	docker compose down --remove-orphans
+	$(COMPOSE) down --remove-orphans
 
 ps:
-	docker compose ps
+	$(COMPOSE) ps
 
 logs:
-	docker compose logs --no-color --tail=200 api-gateway
+	$(COMPOSE) logs --no-color --tail=200 $(API_SERVICE)
 
 migrate:
-	docker compose build
-	docker compose run --rm -e RUN_MIGRATIONS=1 api-gateway true
+	$(COMPOSE) build
+	$(COMPOSE) run --rm -e RUN_MIGRATIONS=1 $(API_SERVICE) true
 
 smoke:
 	@echo "== compose config =="
-	@docker compose config >/dev/null
+	@$(COMPOSE) config >/dev/null
 	@echo "== up =="
-	@docker compose up -d --build
+	@$(COMPOSE) up -d --build
 	@echo "== wait /health =="
 	@bash -lc 'for i in {1..60}; do curl -fsS http://localhost:8010/health >/dev/null && exit 0; sleep 1; done; exit 1'
 
 reset-db:
 	@echo "== DANGER: wipe volumes and rebuild =="
-	docker compose down -v --remove-orphans
-	docker compose up -d --build
+	$(COMPOSE) down -v --remove-orphans
+	$(COMPOSE) up -d --build
+
+# Backward-compatible aliases
+compose-up: up
+compose-down: down
+
+fmt:
+	$(COMPOSE) exec -T $(API_SERVICE) python -m ruff format --check .
+
+lint:
+	$(COMPOSE) exec -T $(API_SERVICE) python -m ruff check .
+
+fix:
+	$(COMPOSE) exec -T $(API_SERVICE) python -m ruff check --fix .
+	$(COMPOSE) exec -T $(API_SERVICE) python -m ruff format .
+
+test:
+	$(COMPOSE) exec -T $(API_SERVICE) python -m pytest tests/unit -q
+
+cycle:
+	$(PYTHON) tools/ci_cycle.py
+
+cycle-autofix:
+	CYCLE_AUTOFIX=1 $(PYTHON) tools/ci_cycle.py
+
+openapi-gen:
+	$(COMPOSE) run --rm -T \
+		-v "$$(pwd):/app" \
+		-e PYTHONPATH=/app:/app/src \
+		$(API_SERVICE) \
+		python scripts/export_openapi.py
+
+openapi-check:
+	$(COMPOSE) run --rm -T \
+		-v "$$(pwd):/app" \
+		-e PYTHONPATH=/app:/app/src \
+		$(API_SERVICE) \
+		python scripts/check_openapi.py

@@ -15,6 +15,7 @@ jwt = pytest.importorskip("jwt")
 def auth_settings():
     s = get_settings()
     keys = [
+        "app_env",
         "auth_mode",
         "api_keys",
         "service_api_keys",
@@ -25,6 +26,10 @@ def auth_settings():
         "oidc_algorithms",
         "jwt_shared_secret",
         "jwt_clock_skew_sec",
+        "jwt_service_claim_key",
+        "jwt_service_claim_values",
+        "jwt_service_role_claim",
+        "jwt_service_allowed_roles",
     ]
     snapshot = {k: getattr(s, k) for k in keys}
     try:
@@ -47,9 +52,17 @@ def _build_hs256_token(*, secret: str, sub: str = "user-1") -> str:
 
 
 def test_auth_none_mode_allows_request(auth_settings) -> None:
+    auth_settings.app_env = "dev"
     auth_settings.auth_mode = "none"
     ctx = require_auth(authorization=None, x_api_key=None)
     assert ctx.auth_type == "none"
+
+
+def test_auth_none_mode_rejected_in_prod(auth_settings) -> None:
+    auth_settings.app_env = "prod"
+    auth_settings.auth_mode = "none"
+    with pytest.raises(UnauthorizedError):
+        require_auth(authorization=None, x_api_key=None)
 
 
 def test_auth_api_key_mode_rejects_invalid_key(auth_settings) -> None:
@@ -63,7 +76,15 @@ def test_auth_api_key_mode_accepts_valid_key(auth_settings) -> None:
     auth_settings.auth_mode = "api_key"
     auth_settings.api_keys = "k1,k2"
     ctx = require_auth(authorization=None, x_api_key="k2")
-    assert ctx.auth_type == "api_key"
+    assert ctx.auth_type == "user_api_key"
+
+
+def test_auth_api_key_mode_marks_service_key(auth_settings) -> None:
+    auth_settings.auth_mode = "api_key"
+    auth_settings.api_keys = "k1"
+    auth_settings.service_api_keys = "svc-1"
+    ctx = require_auth(authorization=None, x_api_key="svc-1")
+    assert ctx.auth_type == "service_api_key"
 
 
 def test_auth_jwt_mode_validates_bearer_token(auth_settings) -> None:
@@ -88,3 +109,13 @@ def test_auth_jwt_mode_allows_service_key_fallback(auth_settings) -> None:
 
     ctx = require_auth(authorization=None, x_api_key="svc-1")
     assert ctx.auth_type == "service_api_key"
+
+
+def test_auth_jwt_mode_rejects_user_api_key_in_fallback(auth_settings) -> None:
+    auth_settings.auth_mode = "jwt"
+    auth_settings.allow_service_api_key_in_jwt_mode = True
+    auth_settings.api_keys = "user-1"
+    auth_settings.service_api_keys = "svc-1"
+
+    with pytest.raises(UnauthorizedError):
+        require_auth(authorization=None, x_api_key="user-1")

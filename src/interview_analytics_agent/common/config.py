@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     service_name: str = Field(default="api-gateway", alias="SERVICE_NAME")
     api_host: str = Field(default="0.0.0.0", alias="API_HOST")
     api_port: int = Field(default=8010, alias="API_PORT")
+    cors_allowed_origins: str = Field(default="*", alias="CORS_ALLOWED_ORIGINS")
+    cors_allow_credentials: bool = Field(default=True, alias="CORS_ALLOW_CREDENTIALS")
 
     # -------------------------------------------------------------------------
     # Auth
@@ -43,6 +45,14 @@ class Settings(BaseSettings):
     oidc_discovery_timeout_sec: int = Field(default=5, alias="OIDC_DISCOVERY_TIMEOUT_SEC")
     jwt_shared_secret: str | None = Field(default=None, alias="JWT_SHARED_SECRET")
     jwt_clock_skew_sec: int = Field(default=30, alias="JWT_CLOCK_SKEW_SEC")
+    jwt_service_claim_key: str = Field(default="token_type", alias="JWT_SERVICE_CLAIM_KEY")
+    jwt_service_claim_values: str = Field(
+        default="service,client_credentials,m2m", alias="JWT_SERVICE_CLAIM_VALUES"
+    )
+    jwt_service_role_claim: str = Field(default="roles", alias="JWT_SERVICE_ROLE_CLAIM")
+    jwt_service_allowed_roles: str = Field(
+        default="service,admin", alias="JWT_SERVICE_ALLOWED_ROLES"
+    )
 
     # -------------------------------------------------------------------------
     # Storage
@@ -81,6 +91,18 @@ class Settings(BaseSettings):
         default=True, alias="WHISPER_VAD_FILTER"
     )  # VAD для улучшения качества сегментов
     whisper_beam_size: int = Field(default=1, alias="WHISPER_BEAM_SIZE")
+
+    # -------------------------------------------------------------------------
+    # Meeting connector (SberJazz target)
+    # -------------------------------------------------------------------------
+    meeting_connector_provider: str = Field(
+        default="sberjazz_mock", alias="MEETING_CONNECTOR_PROVIDER"
+    )  # sberjazz|sberjazz_mock|none
+    sberjazz_api_base: str | None = Field(default=None, alias="SBERJAZZ_API_BASE")
+    sberjazz_api_token: str | None = Field(default=None, alias="SBERJAZZ_API_TOKEN")
+    sberjazz_timeout_sec: int = Field(default=10, alias="SBERJAZZ_TIMEOUT_SEC")
+    sberjazz_retries: int = Field(default=2, alias="SBERJAZZ_RETRIES")
+    sberjazz_retry_backoff_ms: int = Field(default=300, alias="SBERJAZZ_RETRY_BACKOFF_MS")
 
     # -------------------------------------------------------------------------
     # LLM (OpenAI-compatible)

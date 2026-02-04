@@ -19,10 +19,14 @@ import json
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 
-from interview_analytics_agent.common.errors import UnauthorizedError
+from interview_analytics_agent.common.errors import ErrCode, UnauthorizedError
 from interview_analytics_agent.common.ids import new_idempotency_key
 from interview_analytics_agent.common.logging import get_project_logger
-from interview_analytics_agent.common.security import require_auth
+from interview_analytics_agent.common.security import (
+    AuthContext,
+    is_service_jwt_claims,
+    require_auth,
+)
 from interview_analytics_agent.common.utils import b64_decode, safe_dict
 from interview_analytics_agent.queue.dispatcher import enqueue_stt
 from interview_analytics_agent.queue.idempotency import check_and_set
@@ -32,6 +36,57 @@ from interview_analytics_agent.storage.blob import put_bytes
 log = get_project_logger()
 
 ws_router = APIRouter()
+
+
+def _is_service_ctx(ctx: AuthContext) -> bool:
+    return ctx.auth_type == "service_api_key" or (
+        ctx.auth_type == "jwt" and is_service_jwt_claims(ctx.claims)
+    )
+
+
+def _ws_client_ip(ws: WebSocket) -> str | None:
+    return ws.client.host if ws.client else None
+
+
+def _audit_ws_allow(*, ws: WebSocket, ctx: AuthContext, reason: str) -> None:
+    log.info(
+        "security_audit_allow",
+        extra={
+            "payload": {
+                "endpoint": ws.url.path,
+                "method": "WS",
+                "subject": ctx.subject,
+                "auth_type": ctx.auth_type,
+                "reason": reason,
+                "client_ip": _ws_client_ip(ws),
+            }
+        },
+    )
+
+
+def _audit_ws_deny(
+    *,
+    ws: WebSocket,
+    reason: str,
+    error_code: str,
+    auth_type: str = "unknown",
+    subject: str = "unknown",
+) -> None:
+    log.warning(
+        "security_audit_deny",
+        extra={
+            "payload": {
+                "endpoint": ws.url.path,
+                "method": "WS",
+                "status_code": status.WS_1008_POLICY_VIOLATION,
+                "reason": reason,
+                "error_code": error_code,
+                "auth_type": auth_type,
+                "subject": subject,
+                "client_ip": _ws_client_ip(ws),
+            }
+        },
+    )
 
 
 async def _forward_pubsub_to_ws(ws: WebSocket, meeting_id: str) -> None:
@@ -70,18 +125,59 @@ async def _forward_pubsub_to_ws(ws: WebSocket, meeting_id: str) -> None:
             pass
 
 
-@ws_router.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket) -> None:
+async def _authorize_ws(ws: WebSocket, *, service_only: bool) -> AuthContext | None:
     try:
-        require_auth(
+        ctx = require_auth(
             authorization=ws.headers.get("authorization"),
             x_api_key=ws.headers.get("x-api-key"),
         )
     except UnauthorizedError as e:
+        _audit_ws_deny(ws=ws, reason=e.message, error_code=e.code)
         await ws.close(
             code=status.WS_1008_POLICY_VIOLATION,
             reason=f"{e.code}: {e.message}",
         )
+        return None
+
+    if service_only:
+        if not _is_service_ctx(ctx):
+            _audit_ws_deny(
+                ws=ws,
+                reason="not_service_identity",
+                error_code=ErrCode.FORBIDDEN,
+                auth_type=ctx.auth_type,
+                subject=ctx.subject,
+            )
+            await ws.close(
+                code=status.WS_1008_POLICY_VIOLATION,
+                reason="forbidden: service identity required",
+            )
+            return None
+        _audit_ws_allow(ws=ws, ctx=ctx, reason="ws_service_auth_ok")
+        return ctx
+
+    # user websocket endpoint
+    if _is_service_ctx(ctx):
+        _audit_ws_deny(
+            ws=ws,
+            reason="service_identity_not_allowed",
+            error_code=ErrCode.FORBIDDEN,
+            auth_type=ctx.auth_type,
+            subject=ctx.subject,
+        )
+        await ws.close(
+            code=status.WS_1008_POLICY_VIOLATION,
+            reason="forbidden: use /v1/ws/internal for service identities",
+        )
+        return None
+
+    _audit_ws_allow(ws=ws, ctx=ctx, reason="ws_user_auth_ok")
+    return ctx
+
+
+async def _websocket_endpoint_impl(ws: WebSocket, *, service_only: bool) -> None:
+    ctx = await _authorize_ws(ws, service_only=service_only)
+    if ctx is None:
         return
 
     await ws.accept()
@@ -195,3 +291,13 @@ async def websocket_endpoint(ws: WebSocket) -> None:
     finally:
         if forward_task:
             forward_task.cancel()
+
+
+@ws_router.websocket("/ws")
+async def websocket_user_endpoint(ws: WebSocket) -> None:
+    await _websocket_endpoint_impl(ws, service_only=False)
+
+
+@ws_router.websocket("/ws/internal")
+async def websocket_internal_endpoint(ws: WebSocket) -> None:
+    await _websocket_endpoint_impl(ws, service_only=True)

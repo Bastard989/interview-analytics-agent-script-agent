@@ -1,0 +1,897 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Interview Analytics Agent",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/metrics": {
+      "get": {
+        "summary": "Metrics",
+        "operationId": "metrics_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/meetings/start": {
+      "post": {
+        "summary": "Start Meeting",
+        "operationId": "start_meeting_v1_meetings_start_post",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeetingStartRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingStartResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/meetings/{meeting_id}": {
+      "get": {
+        "summary": "Get Meeting",
+        "operationId": "get_meeting_v1_meetings__meeting_id__get",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingGetResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/meetings/{meeting_id}/chunks": {
+      "post": {
+        "summary": "Ingest Chunk",
+        "operationId": "ingest_chunk_v1_meetings__meeting_id__chunks_post",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChunkIngestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkIngestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/queues/health": {
+      "get": {
+        "summary": "Admin Queues Health",
+        "operationId": "admin_queues_health_v1_admin_queues_health_get",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueHealthResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/connectors/sberjazz/{meeting_id}/join": {
+      "post": {
+        "summary": "Admin Sberjazz Join",
+        "operationId": "admin_sberjazz_join_v1_admin_connectors_sberjazz__meeting_id__join_post",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SberJazzSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/connectors/sberjazz/{meeting_id}/leave": {
+      "post": {
+        "summary": "Admin Sberjazz Leave",
+        "operationId": "admin_sberjazz_leave_v1_admin_connectors_sberjazz__meeting_id__leave_post",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SberJazzSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/connectors/sberjazz/{meeting_id}/status": {
+      "get": {
+        "summary": "Admin Sberjazz Status",
+        "operationId": "admin_sberjazz_status_v1_admin_connectors_sberjazz__meeting_id__status_get",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SberJazzSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChunkIngestRequest": {
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Seq"
+          },
+          "content_b64": {
+            "type": "string",
+            "title": "Content B64"
+          },
+          "codec": {
+            "type": "string",
+            "title": "Codec",
+            "default": "pcm"
+          },
+          "sample_rate": {
+            "type": "integer",
+            "title": "Sample Rate",
+            "default": 16000
+          },
+          "channels": {
+            "type": "integer",
+            "title": "Channels",
+            "default": 1
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seq",
+          "content_b64"
+        ],
+        "title": "ChunkIngestRequest"
+      },
+      "ChunkIngestResponse": {
+        "properties": {
+          "accepted": {
+            "type": "boolean",
+            "title": "Accepted"
+          },
+          "meeting_id": {
+            "type": "string",
+            "title": "Meeting Id"
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "title": "Idempotency Key"
+          },
+          "blob_key": {
+            "type": "string",
+            "title": "Blob Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted",
+          "meeting_id",
+          "seq",
+          "idempotency_key",
+          "blob_key"
+        ],
+        "title": "ChunkIngestResponse"
+      },
+      "ConsentStatus": {
+        "type": "string",
+        "enum": [
+          "unknown",
+          "granted",
+          "denied"
+        ],
+        "title": "ConsentStatus",
+        "description": "Статус согласия на обработку данных."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "MeetingGetResponse": {
+        "properties": {
+          "api_version": {
+            "type": "string",
+            "title": "Api Version",
+            "default": "v1"
+          },
+          "meeting_id": {
+            "type": "string",
+            "title": "Meeting Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "raw_transcript": {
+            "type": "string",
+            "title": "Raw Transcript",
+            "default": ""
+          },
+          "enhanced_transcript": {
+            "type": "string",
+            "title": "Enhanced Transcript",
+            "default": ""
+          },
+          "report": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report"
+          }
+        },
+        "type": "object",
+        "required": [
+          "meeting_id",
+          "status"
+        ],
+        "title": "MeetingGetResponse"
+      },
+      "MeetingMode": {
+        "type": "string",
+        "enum": [
+          "realtime",
+          "postmeeting"
+        ],
+        "title": "MeetingMode",
+        "description": "Режим обработки встречи."
+      },
+      "MeetingStartRequest": {
+        "properties": {
+          "api_version": {
+            "type": "string",
+            "title": "Api Version",
+            "default": "v1"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/MeetingMode",
+            "default": "realtime"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language",
+            "default": "ru"
+          },
+          "consent": {
+            "$ref": "#/components/schemas/ConsentStatus",
+            "default": "unknown"
+          },
+          "context": {
+            "type": "object",
+            "title": "Context"
+          },
+          "recipients": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recipients"
+          }
+        },
+        "type": "object",
+        "title": "MeetingStartRequest"
+      },
+      "MeetingStartResponse": {
+        "properties": {
+          "api_version": {
+            "type": "string",
+            "title": "Api Version",
+            "default": "v1"
+          },
+          "meeting_id": {
+            "type": "string",
+            "title": "Meeting Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "meeting_id",
+          "status"
+        ],
+        "title": "MeetingStartResponse"
+      },
+      "QueueHealthItem": {
+        "properties": {
+          "queue": {
+            "type": "string",
+            "title": "Queue"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "depth": {
+            "type": "integer",
+            "title": "Depth"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          },
+          "dlq_depth": {
+            "type": "integer",
+            "title": "Dlq Depth"
+          }
+        },
+        "type": "object",
+        "required": [
+          "queue",
+          "group",
+          "depth",
+          "pending",
+          "dlq_depth"
+        ],
+        "title": "QueueHealthItem"
+      },
+      "QueueHealthResponse": {
+        "properties": {
+          "queues": {
+            "items": {
+              "$ref": "#/components/schemas/QueueHealthItem"
+            },
+            "type": "array",
+            "title": "Queues"
+          }
+        },
+        "type": "object",
+        "required": [
+          "queues"
+        ],
+        "title": "QueueHealthResponse"
+      },
+      "SberJazzSessionResponse": {
+        "properties": {
+          "meeting_id": {
+            "type": "string",
+            "title": "Meeting Id"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "connected": {
+            "type": "boolean",
+            "title": "Connected"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "meeting_id",
+          "provider",
+          "connected",
+          "attempts",
+          "last_error",
+          "updated_at"
+        ],
+        "title": "SberJazzSessionResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

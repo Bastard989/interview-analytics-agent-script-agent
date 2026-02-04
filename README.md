@@ -1,39 +1,59 @@
 # Interview Analytics Agent
 
-Production-oriented backend for interview transcription and analytics.
+Production-ориентированный backend для транскрибации и аналитики интервью.
 
-## Quick Start (dev)
+## Быстрый старт (dev)
 
 - `docker compose up -d --build`
-- API health: `http://localhost:8010/health`
-- Metrics: `http://localhost:8010/metrics`
+- Проверка API: `http://localhost:8010/health`
+- Метрики: `http://localhost:8010/metrics`
 
 ## E2E Smoke
 
 - `python3 tools/e2e_local.py`
 
-Smoke contract:
+Сценарий smoke:
 1. `POST /v1/meetings/start`
 2. `POST /v1/meetings/{id}/chunks`
 3. `GET /v1/meetings/{id}` -> `enhanced_transcript` + `report`
 
-## Auth Modes
+Контуры WebSocket:
+- `/v1/ws` — пользовательский контур (user JWT / `API_KEYS`).
+- `/v1/ws/internal` — сервисный контур (service API key / service JWT claims).
 
-- `AUTH_MODE=none` — local/dev only
-- `AUTH_MODE=api_key` — static API keys
-- `AUTH_MODE=jwt` — JWT/OIDC + optional service API key fallback
+## Режимы авторизации
 
-## Observability Stack (optional profile)
+- `AUTH_MODE=none` — только для local/dev
+- `AUTH_MODE=api_key` — статические API ключи
+- `AUTH_MODE=jwt` — JWT/OIDC + опциональный fallback на service API key
 
-Run with:
+## Внутренний Admin API (только service)
+
+- `GET /v1/admin/queues/health` — состояние queue/DLQ/pending.
+- `POST /v1/admin/connectors/sberjazz/{meeting_id}/join` — инициировать live-подключение коннектора.
+- `GET /v1/admin/connectors/sberjazz/{meeting_id}/status` — получить текущий статус подключения.
+- `POST /v1/admin/connectors/sberjazz/{meeting_id}/leave` — завершить подключение.
+- Требуется service-авторизация (`SERVICE_API_KEYS`) или service JWT claims:
+  (`JWT_SERVICE_CLAIM_KEY` / `JWT_SERVICE_CLAIM_VALUES`, `JWT_SERVICE_ROLE_CLAIM` / `JWT_SERVICE_ALLOWED_ROLES`).
+
+Security audit логи:
+- `security_audit_allow` и `security_audit_deny` (endpoint, method, subject, auth_type, reason).
+
+## Стек наблюдаемости (опциональный профиль)
+
+Запуск:
 
 - `docker compose --profile observability up -d`
 
-Services:
+Сервисы:
 - Prometheus: `http://localhost:9090`
 - Alertmanager: `http://localhost:9093`
 - Grafana: `http://localhost:3000`
 
 ## CI
 
-GitHub Actions runs build, healthcheck, tests, lint, and contract checks on push/PR.
+GitHub Actions запускает:
+- security scans (`trivy` + `grype`, fail на HIGH/CRITICAL),
+- compose build + healthcheck,
+- unit tests + lint + smoke cycle,
+- OpenAPI contract check.

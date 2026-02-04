@@ -30,6 +30,7 @@ class ErrCode:
     STT_PROVIDER_ERROR = "stt_provider_error"
     LLM_PROVIDER_ERROR = "llm_provider_error"
     DELIVERY_PROVIDER_ERROR = "delivery_provider_error"
+    CONNECTOR_PROVIDER_ERROR = "connector_provider_error"
 
     # Инфра/хранилища
     DB_ERROR = "db_error"

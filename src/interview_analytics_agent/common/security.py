@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
@@ -31,6 +32,10 @@ def _parse_api_keys(raw: str) -> set[str]:
     return {k.strip() for k in (raw or "").split(",") if k.strip()}
 
 
+def _parse_csv(raw: str) -> set[str]:
+    return {v.strip() for v in (raw or "").split(",") if v.strip()}
+
+
 @dataclass(frozen=True)
 class AuthContext:
     subject: str
@@ -50,6 +55,48 @@ def _extract_bearer(authorization: str | None) -> str | None:
     if authorization.lower().startswith(prefix):
         return authorization[len(prefix) :].strip()
     return None
+
+
+def _is_prod_env(app_env: str | None) -> bool:
+    env = (app_env or "").strip().lower()
+    return env in {"prod", "production"}
+
+
+def _claim_values(value: Any) -> set[str]:
+    if value is None:
+        return set()
+    if isinstance(value, str):
+        return {v for v in re.split(r"[,\s]+", value.strip()) if v}
+    if isinstance(value, list | tuple | set):
+        out: set[str] = set()
+        for item in value:
+            if item is None:
+                continue
+            out.update(_claim_values(item))
+        return out
+    return {str(value)}
+
+
+def is_service_jwt_claims(claims: dict[str, Any] | None) -> bool:
+    if not claims:
+        return False
+
+    s = get_settings()
+    claim_key = (s.jwt_service_claim_key or "").strip()
+    claim_values_allowed = _parse_csv(s.jwt_service_claim_values)
+    if claim_key and claim_values_allowed:
+        actual = _claim_values(claims.get(claim_key))
+        if actual & claim_values_allowed:
+            return True
+
+    role_claim = (s.jwt_service_role_claim or "").strip()
+    role_values_allowed = _parse_csv(s.jwt_service_allowed_roles)
+    if role_claim and role_values_allowed:
+        actual_roles = _claim_values(claims.get(role_claim))
+        if actual_roles & role_values_allowed:
+            return True
+
+    return False
 
 
 @lru_cache(maxsize=8)
@@ -128,17 +175,22 @@ def require_auth(*, authorization: str | None, x_api_key: str | None) -> AuthCon
     mode = (settings.auth_mode or "api_key").lower().strip()
 
     if mode == "none":
+        if _is_prod_env(getattr(settings, "app_env", None)):
+            raise UnauthorizedError("AUTH_MODE=none запрещён в APP_ENV=prod")
         return AuthContext(subject="anonymous", auth_type="none")
 
     user_keys = _parse_api_keys(settings.api_keys)
     service_keys = _parse_api_keys(getattr(settings, "service_api_keys", ""))
     combined_keys = user_keys | service_keys
     has_valid_key = bool(x_api_key and x_api_key in combined_keys)
+    has_valid_service_key = bool(x_api_key and x_api_key in service_keys)
 
     if mode == "api_key":
         if not has_valid_key:
             raise UnauthorizedError("Неверный API ключ")
-        return AuthContext(subject="service", auth_type="api_key")
+        if has_valid_service_key:
+            return AuthContext(subject="service", auth_type="service_api_key")
+        return AuthContext(subject="user", auth_type="user_api_key")
 
     if mode != "jwt":
         raise UnauthorizedError("Неизвестный режим авторизации")
@@ -150,7 +202,7 @@ def require_auth(*, authorization: str | None, x_api_key: str | None) -> AuthCon
         return AuthContext(subject=sub, auth_type="jwt", claims=claims)
 
     allow_key_fallback = bool(getattr(settings, "allow_service_api_key_in_jwt_mode", True))
-    if allow_key_fallback and has_valid_key:
+    if allow_key_fallback and has_valid_service_key:
         return AuthContext(subject="service", auth_type="service_api_key")
 
     raise UnauthorizedError("Требуется Bearer JWT или service API key")
