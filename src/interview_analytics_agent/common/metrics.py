@@ -128,6 +128,42 @@ SBERJAZZ_RECONCILE_LAST_RECONNECTED = Gauge(
     "Количество успешных reconnect в последнем reconcile запуске",
 )
 
+SBERJAZZ_LIVE_PULL_RUNS_TOTAL = Counter(
+    "agent_sberjazz_live_pull_runs_total",
+    "Количество запусков live-pull для SberJazz connector",
+    ["source", "result"],  # source=job|admin, result=ok|failed
+)
+
+SBERJAZZ_LIVE_PULL_LAST_SCANNED = Gauge(
+    "agent_sberjazz_live_pull_last_scanned",
+    "Количество сессий, просмотренных в последнем live-pull",
+)
+
+SBERJAZZ_LIVE_PULL_LAST_CONNECTED = Gauge(
+    "agent_sberjazz_live_pull_last_connected",
+    "Количество connected-сессий в последнем live-pull",
+)
+
+SBERJAZZ_LIVE_PULL_LAST_PULLED = Gauge(
+    "agent_sberjazz_live_pull_last_pulled",
+    "Количество chunk'ов, полученных в последнем live-pull",
+)
+
+SBERJAZZ_LIVE_PULL_LAST_INGESTED = Gauge(
+    "agent_sberjazz_live_pull_last_ingested",
+    "Количество chunk'ов, реально ingested в последнем live-pull",
+)
+
+SBERJAZZ_LIVE_PULL_LAST_FAILED = Gauge(
+    "agent_sberjazz_live_pull_last_failed",
+    "Количество сессий с ошибками в последнем live-pull",
+)
+
+SBERJAZZ_LIVE_PULL_LAST_INVALID_CHUNKS = Gauge(
+    "agent_sberjazz_live_pull_last_invalid_chunks",
+    "Количество некорректных chunk'ов в последнем live-pull",
+)
+
 
 _QUEUE_GROUPS = {
     "q:stt": "g:stt",
@@ -217,6 +253,26 @@ def record_sberjazz_reconcile_result(
 
 def record_sberjazz_cb_reset(*, source: str, reason: str) -> None:
     SBERJAZZ_CIRCUIT_BREAKER_RESETS_TOTAL.labels(source=source, reason=reason).inc()
+
+
+def record_sberjazz_live_pull_result(
+    *,
+    source: str,
+    scanned: int,
+    connected: int,
+    pulled: int,
+    ingested: int,
+    failed: int,
+    invalid_chunks: int,
+) -> None:
+    result = "failed" if failed > 0 else "ok"
+    SBERJAZZ_LIVE_PULL_RUNS_TOTAL.labels(source=source, result=result).inc()
+    SBERJAZZ_LIVE_PULL_LAST_SCANNED.set(max(0, scanned))
+    SBERJAZZ_LIVE_PULL_LAST_CONNECTED.set(max(0, connected))
+    SBERJAZZ_LIVE_PULL_LAST_PULLED.set(max(0, pulled))
+    SBERJAZZ_LIVE_PULL_LAST_INGESTED.set(max(0, ingested))
+    SBERJAZZ_LIVE_PULL_LAST_FAILED.set(max(0, failed))
+    SBERJAZZ_LIVE_PULL_LAST_INVALID_CHUNKS.set(max(0, invalid_chunks))
 
 
 def refresh_storage_metrics() -> None:

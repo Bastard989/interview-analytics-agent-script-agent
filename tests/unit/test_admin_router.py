@@ -296,6 +296,35 @@ def test_admin_sberjazz_sessions_and_reconcile(monkeypatch, auth_settings) -> No
     assert reconcile.json()["reconnected"] == 1
 
 
+def test_admin_sberjazz_live_pull(monkeypatch, auth_settings) -> None:
+    auth_settings.auth_mode = "api_key"
+    auth_settings.service_api_keys = "svc-1"
+
+    monkeypatch.setattr(
+        "apps.api_gateway.routers.admin.pull_sberjazz_live_chunks",
+        lambda limit_sessions, batch_limit: SimpleNamespace(
+            scanned=2,
+            connected=1,
+            pulled=3,
+            ingested=2,
+            failed=0,
+            invalid_chunks=1,
+            updated_at="2026-02-04T00:00:07+00:00",
+        ),
+    )
+
+    client = TestClient(app)
+    resp = client.post(
+        "/v1/admin/connectors/sberjazz/live-pull?limit_sessions=20&batch_limit=10",
+        headers={"X-API-Key": "svc-1"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["scanned"] == 2
+    assert data["pulled"] == 3
+    assert data["invalid_chunks"] == 1
+
+
 def test_admin_sberjazz_circuit_breaker(monkeypatch, auth_settings) -> None:
     auth_settings.auth_mode = "api_key"
     auth_settings.service_api_keys = "svc-1"

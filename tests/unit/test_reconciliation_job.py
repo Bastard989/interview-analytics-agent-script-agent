@@ -44,6 +44,7 @@ def test_reconciliation_job_runs_with_limit(monkeypatch) -> None:
             pulled=0,
             ingested=0,
             failed=0,
+            invalid_chunks=0,
             updated_at="2026-02-04T00:00:00+00:00",
         ),
     )
@@ -108,6 +109,7 @@ def test_reconciliation_job_auto_resets_cb_when_healthy(monkeypatch) -> None:
             pulled=0,
             ingested=0,
             failed=0,
+            invalid_chunks=0,
             updated_at="2026-02-04T00:00:00+00:00",
         ),
     )
@@ -175,6 +177,7 @@ def test_reconciliation_job_does_not_reset_cb_when_unhealthy(monkeypatch) -> Non
             pulled=0,
             ingested=0,
             failed=0,
+            invalid_chunks=0,
             updated_at="2026-02-04T00:00:00+00:00",
         ),
     )

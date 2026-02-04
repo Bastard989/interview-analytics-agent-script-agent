@@ -15,6 +15,7 @@ from apps.api_gateway.deps import service_auth_read_dep, service_auth_write_dep
 from interview_analytics_agent.common.errors import ErrCode, ProviderError
 from interview_analytics_agent.common.metrics import (
     record_sberjazz_cb_reset,
+    record_sberjazz_live_pull_result,
     record_sberjazz_reconcile_result,
 )
 from interview_analytics_agent.queue.redis import redis_client
@@ -23,6 +24,7 @@ from interview_analytics_agent.services.readiness_service import evaluate_readin
 from interview_analytics_agent.services.sberjazz_service import (
     SberJazzCircuitBreakerState,
     SberJazzConnectorHealth,
+    SberJazzLivePullResult,
     SberJazzReconcileResult,
     SberJazzSessionState,
     get_sberjazz_circuit_breaker_state,
@@ -31,6 +33,7 @@ from interview_analytics_agent.services.sberjazz_service import (
     join_sberjazz_meeting,
     leave_sberjazz_meeting,
     list_sberjazz_sessions,
+    pull_sberjazz_live_chunks,
     reconcile_sberjazz_sessions,
     reconnect_sberjazz_meeting,
     reset_sberjazz_circuit_breaker,
@@ -88,6 +91,16 @@ class SberJazzReconcileResponse(BaseModel):
     reconnected: int
     failed: int
     stale_threshold_sec: int
+    updated_at: str
+
+
+class SberJazzLivePullResponse(BaseModel):
+    scanned: int
+    connected: int
+    pulled: int
+    ingested: int
+    failed: int
+    invalid_chunks: int
     updated_at: str
 
 
@@ -163,6 +176,18 @@ def _as_reconcile_response(state: SberJazzReconcileResult) -> SberJazzReconcileR
         reconnected=state.reconnected,
         failed=state.failed,
         stale_threshold_sec=state.stale_threshold_sec,
+        updated_at=state.updated_at,
+    )
+
+
+def _as_live_pull_response(state: SberJazzLivePullResult) -> SberJazzLivePullResponse:
+    return SberJazzLivePullResponse(
+        scanned=state.scanned,
+        connected=state.connected,
+        pulled=state.pulled,
+        ingested=state.ingested,
+        failed=state.failed,
+        invalid_chunks=state.invalid_chunks,
         updated_at=state.updated_at,
     )
 
@@ -362,6 +387,31 @@ def admin_sberjazz_reconcile(limit: int = 200) -> SberJazzReconcileResponse:
     return _as_reconcile_response(result)
 
 
+@router.post(
+    "/admin/connectors/sberjazz/live-pull",
+    response_model=SberJazzLivePullResponse,
+    dependencies=[Depends(service_auth_write_dep)],
+)
+def admin_sberjazz_live_pull(
+    limit_sessions: int = 100,
+    batch_limit: int = 20,
+) -> SberJazzLivePullResponse:
+    result = pull_sberjazz_live_chunks(
+        limit_sessions=max(1, min(limit_sessions, 1000)),
+        batch_limit=max(1, min(batch_limit, 500)),
+    )
+    record_sberjazz_live_pull_result(
+        source="admin",
+        scanned=result.scanned,
+        connected=result.connected,
+        pulled=result.pulled,
+        ingested=result.ingested,
+        failed=result.failed,
+        invalid_chunks=result.invalid_chunks,
+    )
+    return _as_live_pull_response(result)
+
+
 @router.get(
     "/admin/security/audit",
     response_model=SecurityAuditListResponse,
@@ -388,4 +438,6 @@ def admin_security_audit(
                 "details": {"err": str(e)[:200]},
             },
         ) from e
-    return SecurityAuditListResponse(events=[SecurityAuditEventResponse(**event.__dict__) for event in events])
+    return SecurityAuditListResponse(
+        events=[SecurityAuditEventResponse(**event.__dict__) for event in events]
+    )

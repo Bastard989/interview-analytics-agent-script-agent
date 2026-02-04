@@ -141,6 +141,11 @@ class Settings(BaseSettings):
     sberjazz_live_pull_sessions_limit: int = Field(
         default=100, alias="SBERJAZZ_LIVE_PULL_SESSIONS_LIMIT"
     )
+    sberjazz_live_pull_retries: int = Field(default=1, alias="SBERJAZZ_LIVE_PULL_RETRIES")
+    sberjazz_live_pull_retry_backoff_ms: int = Field(
+        default=200, alias="SBERJAZZ_LIVE_PULL_RETRY_BACKOFF_MS"
+    )
+    sberjazz_mock_live_chunks_b64: str = Field(default="", alias="SBERJAZZ_MOCK_LIVE_CHUNKS_B64")
     reconciliation_enabled: bool = Field(default=True, alias="RECONCILIATION_ENABLED")
     reconciliation_interval_sec: int = Field(default=60, alias="RECONCILIATION_INTERVAL_SEC")
     reconciliation_limit: int = Field(default=200, alias="RECONCILIATION_LIMIT")

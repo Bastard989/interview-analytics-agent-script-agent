@@ -79,3 +79,22 @@ def test_record_cb_reset_increments_counter() -> None:
         reason="manual_reset",
     )._value.get()
     assert after == before + 1
+
+
+def test_record_live_pull_metrics_sets_last_values() -> None:
+    metrics.record_sberjazz_live_pull_result(
+        source="job",
+        scanned=5,
+        connected=3,
+        pulled=10,
+        ingested=8,
+        failed=1,
+        invalid_chunks=2,
+    )
+
+    assert metrics.SBERJAZZ_LIVE_PULL_LAST_SCANNED._value.get() == 5
+    assert metrics.SBERJAZZ_LIVE_PULL_LAST_CONNECTED._value.get() == 3
+    assert metrics.SBERJAZZ_LIVE_PULL_LAST_PULLED._value.get() == 10
+    assert metrics.SBERJAZZ_LIVE_PULL_LAST_INGESTED._value.get() == 8
+    assert metrics.SBERJAZZ_LIVE_PULL_LAST_FAILED._value.get() == 1
+    assert metrics.SBERJAZZ_LIVE_PULL_LAST_INVALID_CHUNKS._value.get() == 2

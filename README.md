@@ -17,6 +17,7 @@ Production-ориентированный backend для транскрибац�
 ## E2E Smoke
 
 - `python3 tools/e2e_local.py`
+- `python3 tools/e2e_connector_live.py` (realtime connector live-pull smoke)
 - `make storage-smoke` (shared storage failover smoke)
 
 Сценарий smoke:
@@ -60,6 +61,7 @@ HTTP ingest контуры:
 - `POST /v1/admin/connectors/sberjazz/circuit-breaker/reset` — manual reset circuit breaker.
 - `GET /v1/admin/connectors/sberjazz/sessions` — список сохранённых connector-сессий.
 - `POST /v1/admin/connectors/sberjazz/reconcile` — reconcile stale-сессий с авто-reconnect.
+- `POST /v1/admin/connectors/sberjazz/live-pull` — вручную запустить live-pull чанков из коннектора.
 - `GET /v1/admin/security/audit` — получить персистентный audit trail (allow/deny).
 - Требуется service-авторизация (`SERVICE_API_KEYS`) или service JWT claims:
   (`JWT_SERVICE_CLAIM_KEY` / `JWT_SERVICE_CLAIM_VALUES`, `JWT_SERVICE_ROLE_CLAIM` / `JWT_SERVICE_ALLOWED_ROLES`).
@@ -78,6 +80,7 @@ Security audit логи:
   `SBERJAZZ_RECONCILE_STALE_SEC`.
 - Также выполняет live pull по активным connector-сессиям:
   `SBERJAZZ_LIVE_PULL_ENABLED`, `SBERJAZZ_LIVE_PULL_BATCH_LIMIT`, `SBERJAZZ_LIVE_PULL_SESSIONS_LIMIT`.
+  Дополнительно: `SBERJAZZ_LIVE_PULL_RETRIES`, `SBERJAZZ_LIVE_PULL_RETRY_BACKOFF_MS`.
 
 ## Startup readiness (prod guardrail)
 
@@ -115,6 +118,8 @@ SberJazz HTTP resilience:
 - `agent_sberjazz_circuit_breaker_open`
 - `agent_sberjazz_circuit_breaker_resets_total{source,reason}`
 - `agent_sberjazz_sessions_total{state="connected|disconnected"}`
+- `agent_sberjazz_live_pull_runs_total{source,result}`
+- `agent_sberjazz_live_pull_last_scanned|connected|pulled|ingested|failed|invalid_chunks`
 - `agent_storage_health{mode="local_fs|shared_fs"}`
 - `agent_system_readiness`
 

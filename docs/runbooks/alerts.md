@@ -50,6 +50,13 @@
 4. После устранения причины дождаться auto-cooldown (`SBERJAZZ_CB_OPEN_SEC`) или выполнить manual reset:
    `POST /v1/admin/connectors/sberjazz/circuit-breaker/reset`.
 
+## SberJazzLivePullHasFailures
+
+1. Проверить ручной запуск live-pull: `POST /v1/admin/connectors/sberjazz/live-pull`.
+2. Проверить список сессий: `GET /v1/admin/connectors/sberjazz/sessions`.
+3. Проверить логи `api-gateway` по событиям `sberjazz_live_pull_retry`, `sberjazz_live_pull_failed`.
+4. Если есть `invalid_chunks` — проверить формат ответа провайдера `/live-chunks`.
+
 ## BlobStorageUnhealthy
 
 1. Проверить endpoint `GET /v1/admin/storage/health`.

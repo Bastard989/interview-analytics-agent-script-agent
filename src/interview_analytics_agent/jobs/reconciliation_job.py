@@ -14,6 +14,7 @@ from interview_analytics_agent.common.config import get_settings
 from interview_analytics_agent.common.logging import get_project_logger
 from interview_analytics_agent.common.metrics import (
     record_sberjazz_cb_reset,
+    record_sberjazz_live_pull_result,
     record_sberjazz_reconcile_result,
 )
 from interview_analytics_agent.services.sberjazz_service import (
@@ -93,6 +94,15 @@ def _maybe_pull_live_chunks(*, reconcile_limit: int) -> None:
     )
     batch_limit = max(1, int(getattr(settings, "sberjazz_live_pull_batch_limit", 20)))
     result = pull_sberjazz_live_chunks(limit_sessions=sessions_limit, batch_limit=batch_limit)
+    record_sberjazz_live_pull_result(
+        source="job",
+        scanned=result.scanned,
+        connected=result.connected,
+        pulled=result.pulled,
+        ingested=result.ingested,
+        failed=result.failed,
+        invalid_chunks=result.invalid_chunks,
+    )
     log.info(
         "reconciliation_live_pull_finished",
         extra={
@@ -102,6 +112,7 @@ def _maybe_pull_live_chunks(*, reconcile_limit: int) -> None:
                 "pulled": result.pulled,
                 "ingested": result.ingested,
                 "failed": result.failed,
+                "invalid_chunks": result.invalid_chunks,
             }
         },
     )

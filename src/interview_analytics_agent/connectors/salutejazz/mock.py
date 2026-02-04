@@ -7,6 +7,7 @@ Mock-коннектор SaluteJazz для dev/тестов.
 
 from __future__ import annotations
 
+from interview_analytics_agent.common.config import get_settings
 from interview_analytics_agent.connectors.base import MeetingConnector, MeetingContext
 
 
@@ -25,5 +26,14 @@ class MockSaluteJazzConnector(MeetingConnector):
     def fetch_live_chunks(
         self, meeting_id: str, *, cursor: str | None = None, limit: int = 20
     ) -> dict | None:
-        _ = meeting_id, cursor, limit
-        return {"chunks": [], "next_cursor": cursor}
+        _ = limit
+        s = get_settings()
+        sample_b64 = (getattr(s, "sberjazz_mock_live_chunks_b64", "") or "").strip()
+        if not sample_b64:
+            return {"chunks": [], "next_cursor": cursor}
+        if cursor:
+            return {"chunks": [], "next_cursor": cursor}
+        return {
+            "chunks": [{"id": f"{meeting_id}:mock-live:1", "seq": 1, "content_b64": sample_b64}],
+            "next_cursor": "mock-live-1",
+        }

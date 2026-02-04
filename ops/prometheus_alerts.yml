@@ -77,6 +77,16 @@ groups:
           description: "Connector circuit breaker открыт и блокирует операции join/leave."
           runbook_url: "docs/runbooks/alerts.md#sberjazzcircuitbreakeropen"
 
+      - alert: SberJazzLivePullHasFailures
+        expr: agent_sberjazz_live_pull_last_failed > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SberJazz live-pull reports failures"
+          description: "Последний live-pull зафиксировал {{ $value }} failed sessions."
+          runbook_url: "docs/runbooks/alerts.md#sberjazzlivepullhasfailures"
+
   - name: agent-storage
     rules:
       - alert: BlobStorageUnhealthy

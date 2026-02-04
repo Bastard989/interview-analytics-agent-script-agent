@@ -1145,6 +1145,88 @@
         }
       }
     },
+    "/v1/admin/connectors/sberjazz/live-pull": {
+      "post": {
+        "summary": "Admin Sberjazz Live Pull",
+        "operationId": "admin_sberjazz_live_pull_v1_admin_connectors_sberjazz_live_pull_post",
+        "parameters": [
+          {
+            "name": "limit_sessions",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "title": "Limit Sessions"
+            }
+          },
+          {
+            "name": "batch_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "title": "Batch Limit"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SberJazzLivePullResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/admin/security/audit": {
       "get": {
         "summary": "Admin Security Audit",
@@ -1666,6 +1748,49 @@
           "updated_at"
         ],
         "title": "SberJazzConnectorHealthResponse"
+      },
+      "SberJazzLivePullResponse": {
+        "properties": {
+          "scanned": {
+            "type": "integer",
+            "title": "Scanned"
+          },
+          "connected": {
+            "type": "integer",
+            "title": "Connected"
+          },
+          "pulled": {
+            "type": "integer",
+            "title": "Pulled"
+          },
+          "ingested": {
+            "type": "integer",
+            "title": "Ingested"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "invalid_chunks": {
+            "type": "integer",
+            "title": "Invalid Chunks"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scanned",
+          "connected",
+          "pulled",
+          "ingested",
+          "failed",
+          "invalid_chunks",
+          "updated_at"
+        ],
+        "title": "SberJazzLivePullResponse"
       },
       "SberJazzReconcileResponse": {
         "properties": {
