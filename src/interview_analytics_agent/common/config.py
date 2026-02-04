@@ -1,0 +1,120 @@
+"""
+Централизованная конфигурация проекта (ENV / .env).
+
+Важно:
+- настройки читаются из .env и переменных окружения
+- типизированные значения через pydantic-settings
+"""
+
+from __future__ import annotations
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    # -------------------------------------------------------------------------
+    # Runtime
+    # -------------------------------------------------------------------------
+    app_env: str = Field(default="dev", alias="APP_ENV")
+    service_name: str = Field(default="api-gateway", alias="SERVICE_NAME")
+    api_host: str = Field(default="0.0.0.0", alias="API_HOST")
+    api_port: int = Field(default=8010, alias="API_PORT")
+
+    # -------------------------------------------------------------------------
+    # Auth
+    # -------------------------------------------------------------------------
+    auth_mode: str = Field(default="api_key", alias="AUTH_MODE")  # api_key|jwt|none
+    api_keys: str = Field(default="", alias="API_KEYS")
+
+    # -------------------------------------------------------------------------
+    # Storage
+    # -------------------------------------------------------------------------
+    postgres_dsn: str = Field(
+        default="postgresql+psycopg://postgres:postgres@postgres:5432/agent",
+        alias="POSTGRES_DSN",
+    )
+    redis_url: str = Field(default="redis://redis:6379/0", alias="REDIS_URL")
+
+
+
+    chunks_dir: str = Field(default="./data/chunks", alias="CHUNKS_DIR")
+    # -------------------------------------------------------------------------
+    # PII / Retention
+    # -------------------------------------------------------------------------
+    pii_masking: bool = Field(default=True, alias="PII_MASKING")
+    retention_days_audio: int = Field(default=14, alias="RETENTION_DAYS_AUDIO")
+    retention_days_text: int = Field(default=90, alias="RETENTION_DAYS_TEXT")
+
+    # -------------------------------------------------------------------------
+    # STT
+    # -------------------------------------------------------------------------
+    stt_provider: str = Field(
+        default="whisper_local", alias="STT_PROVIDER"
+    )  # whisper_local|google|salutespeech
+
+    # Локальный Whisper (faster-whisper)
+    whisper_model_size: str = Field(
+        default="small", alias="WHISPER_MODEL_SIZE"
+    )  # tiny|base|small|medium|large-v3
+    whisper_device: str = Field(default="cpu", alias="WHISPER_DEVICE")  # cpu|cuda
+    whisper_compute_type: str = Field(
+        default="int8", alias="WHISPER_COMPUTE_TYPE"
+    )  # int8|int8_float16|float16|float32
+    whisper_language: str = Field(default="ru", alias="WHISPER_LANGUAGE")  # ru|en|auto
+    whisper_vad_filter: bool = Field(
+        default=True, alias="WHISPER_VAD_FILTER"
+    )  # VAD для улучшения качества сегментов
+    whisper_beam_size: int = Field(default=1, alias="WHISPER_BEAM_SIZE")
+
+    # -------------------------------------------------------------------------
+    # LLM (OpenAI-compatible)
+    # -------------------------------------------------------------------------
+    llm_enabled: bool = Field(default=True, alias="LLM_ENABLED")
+    openai_api_base: str | None = Field(default=None, alias="OPENAI_API_BASE")
+    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    llm_model_id: str = Field(default="llama3:8b", alias="LLM_MODEL_ID")
+    llm_temperature: float = Field(default=0.7, alias="LLM_TEMPERATURE")
+    llm_max_tokens: int = Field(default=2048, alias="LLM_MAX_TOKENS")
+    llm_top_p: float = Field(default=0.95, alias="LLM_TOP_P")
+    llm_frequency_penalty: float = Field(default=0.0, alias="LLM_FREQUENCY_PENALTY")
+    llm_presence_penalty: float = Field(default=0.0, alias="LLM_PRESENCE_PENALTY")
+    llm_request_timeout_sec: int = Field(default=30, alias="LLM_REQUEST_TIMEOUT_SEC")
+    llm_retries: int = Field(default=2, alias="LLM_RETRIES")
+    llm_retry_backoff_ms: int = Field(default=250, alias="LLM_RETRY_BACKOFF_MS")
+
+    # -------------------------------------------------------------------------
+    # OTEL (OpenTelemetry)
+    # -------------------------------------------------------------------------
+    otel_enabled: bool = Field(default=False, alias="OTEL_ENABLED")
+    otel_exporter_otlp_endpoint: str | None = Field(
+        default=None, alias="OTEL_EXPORTER_OTLP_ENDPOINT"
+    )
+
+    # Delivery / SMTP
+    # -------------------------------------------------------------------------
+    delivery_provider: str = Field(default="email", alias="DELIVERY_PROVIDER")
+    smtp_host: str | None = Field(default=None, alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_user: str | None = Field(default=None, alias="SMTP_USER")
+    smtp_pass: str | None = Field(default=None, alias="SMTP_PASS")
+    email_from: str = Field(default="hr-agent@example.com", alias="EMAIL_FROM")
+
+    # -------------------------------------------------------------------------
+    # Logging
+    # -------------------------------------------------------------------------
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    log_format: str = Field(default="json", alias="LOG_FORMAT")  # json|text
+
+
+_SETTINGS = Settings()
+
+
+def get_settings() -> Settings:
+    return _SETTINGS

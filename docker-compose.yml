@@ -1,0 +1,253 @@
+name: interview-analytics-agent
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-interview}
+      POSTGRES_USER: ${POSTGRES_USER:-interview}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-interview}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-interview} -d ${POSTGRES_DB:-interview}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - redis_data:/data
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_DSN: ${POSTGRES_DSN:-postgresql+psycopg://interview:interview@postgres:5432/interview}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      POSTGRES_DSN: ${POSTGRES_DSN:-postgresql+psycopg://interview:interview@postgres:5432/interview}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CHUNKS_DIR: ${CHUNKS_DIR:-/data/chunks}
+      LLM_ENABLED: ${LLM_ENABLED:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+    command: ["uvicorn", "apps.api_gateway.main:app", "--host", "0.0.0.0", "--port", "8010"]
+    ports:
+      - "8010:8010"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8010/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - app_data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+
+  stt-model-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Куда складываем HF cache (модель и файлы)
+      HF_HOME: /hf
+      HF_HUB_CACHE: /hf/hub
+      # init должен иметь право скачать (offline выключен)
+      HF_HUB_OFFLINE: "0"
+
+      # параметры модели (берём те же, что и worker-stt)
+      WHISPER_MODEL_SIZE: ${WHISPER_MODEL_SIZE:-small}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
+
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+    volumes:
+      - hf_cache:/hf
+    command:
+      - python3
+      - -c
+      - >
+          import os;
+          from faster_whisper import WhisperModel;
+          m=os.environ.get("WHISPER_MODEL_SIZE","small");
+          d=os.environ.get("WHISPER_DEVICE","cpu");
+          c=os.environ.get("WHISPER_COMPUTE_TYPE","int8");
+          WhisperModel(m, device=d, compute_type=c);
+          print("STT model cached:", m, d, c)
+    restart: "no"
+
+  worker-stt:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      stt-model-init:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      POSTGRES_DSN: ${POSTGRES_DSN:-postgresql+psycopg://interview:interview@postgres:5432/interview}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CHUNKS_DIR: ${CHUNKS_DIR:-/data/chunks}
+      STT_PROVIDER: ${STT_PROVIDER:-whisper_local}
+      WHISPER_MODEL_SIZE: ${WHISPER_MODEL_SIZE:-small}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-ru}
+      WHISPER_VAD_FILTER: ${WHISPER_VAD_FILTER:-true}
+      WHISPER_BEAM_SIZE: ${WHISPER_BEAM_SIZE:-1}
+      HF_HOME: /hf
+      HF_HUB_CACHE: /hf/hub
+      HF_HUB_OFFLINE: "1"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+    command: ["python3", "-m", "apps.worker_stt.main"]
+    volumes:
+      - app_data:/data
+      - hf_cache:/hf
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  worker-enhancer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      POSTGRES_DSN: ${POSTGRES_DSN:-postgresql+psycopg://interview:interview@postgres:5432/interview}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CHUNKS_DIR: ${CHUNKS_DIR:-/data/chunks}
+      LLM_ENABLED: ${LLM_ENABLED:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+    command: ["python3", "-m", "apps.worker_enhancer.main"]
+    volumes:
+      - app_data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  worker-analytics:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      POSTGRES_DSN: ${POSTGRES_DSN:-postgresql+psycopg://interview:interview@postgres:5432/interview}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CHUNKS_DIR: ${CHUNKS_DIR:-/data/chunks}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+    command: ["python3", "-m", "apps.worker_analytics.main"]
+    volumes:
+      - app_data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  worker-delivery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      POSTGRES_DSN: ${POSTGRES_DSN:-postgresql+psycopg://interview:interview@postgres:5432/interview}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CHUNKS_DIR: ${CHUNKS_DIR:-/data/chunks}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+    command: ["python3", "-m", "apps.worker_delivery.main"]
+    volumes:
+      - app_data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  worker-retention:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      POSTGRES_DSN: ${POSTGRES_DSN:-postgresql+psycopg://interview:interview@postgres:5432/interview}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CHUNKS_DIR: ${CHUNKS_DIR:-/data/chunks}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+    command: ["python3", "-m", "apps.worker_retention.main"]
+    volumes:
+      - app_data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+  redis_data:
+  app_data:
+  hf_cache:

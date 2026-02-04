@@ -1,0 +1,33 @@
+{
+  "ok": true,
+  "steps": [
+    {
+      "cmd": "make fmt",
+      "code": 0,
+      "secs": 0.049,
+      "out": "make[1]: Nothing to be done for `fmt'.\n"
+    },
+    {
+      "cmd": "make lint",
+      "code": 0,
+      "secs": 0.047,
+      "out": "make[1]: Nothing to be done for `lint'.\n"
+    },
+    {
+      "cmd": "make test",
+      "code": 0,
+      "secs": 0.048,
+      "out": "make[1]: Nothing to be done for `test'.\n"
+    },
+    {
+      "cmd": "make smoke",
+      "code": 0,
+      "secs": 3.971,
+      "out": "== smoke: start ==\ndocker compose up -d --build\n#1 [internal] load local bake definitions\n#1 reading from stdin 729B done\n#1 DONE 0.0s\n\n#2 [internal] load build definition from Dockerfile\n#2 transferring dockerfile: 722B done\n#2 DONE 0.0s\n\n#3 [internal] load metadata for docker.io/library/python:3.11-slim\n#3 DONE 1.1s\n\n#4 [internal] load .dockerignore\n#4 transferring context: 2B done\n#4 DONE 0.0s\n\n#5 [1/9] FROM docker.io/library/python:3.11-slim@sha256:5be45dbade29bebd6886af6b438fd7e0b4eb7b611f39ba62b430263f82de36d2\n#5 DONE 0.0s\n\n#6 [internal] load build context\n#6 transferring context: 12.04kB 0.0s done\n#6 DONE 0.0s\n\n#7 [6/9] COPY src /app/src\n#7 CACHED\n\n#8 [3/9] RUN apt-get update && apt-get install -y --no-install-recommends     curl ca-certificates     libpq5 libpq-dev   && rm -rf /var/lib/apt/lists/*\n#8 CACHED\n\n#9 [4/9] COPY requirements.txt /app/requirements.txt\n#9 CACHED\n\n#10 [2/9] WORKDIR /app\n#10 CACHED\n\n#11 [5/9] RUN python -m pip install -U pip && pip install -r /app/requirements.txt\n#11 CACHED\n\n#12 [7/9] COPY apps /app/apps\n#12 CACHED\n\n#13 [8/9] COPY tools /app/tools\n#13 DONE 0.0s\n\n#14 [9/9] COPY pyproject.toml /app/pyproject.toml\n#14 DONE 0.0s\n\n#15 exporting to image\n#15 exporting layers 0.0s done\n#15 writing image sha256:14237da1b46b66fe993779dbeadecaf4603c4c5c53540162df983063ec2204ab done\n#15 naming to docker.io/library/interview-analytics-agent-api-gateway done\n#15 DONE 0.0s\n\n#16 resolving provenance for metadata file\n#16 DONE 0.0s\n interview-analytics-agent-api-gateway  Built\n Container interview-analytics-agent-postgres-1  Running\n Container interview-analytics-agent-redis-1  Running\n Container interview-analytics-agent-api-gateway-1  Recreate\n Container interview-analytics-agent-api-gateway-1  Recreated\n Container interview-analytics-agent-redis-1  Waiting\n Container interview-analytics-agent-postgres-1  Waiting\n Container interview-analytics-agent-redis-1  Healthy\n Container interview-analytics-agent-postgres-1  Healthy\n Container interview-analytics-agent-api-gateway-1  Starting\n Container interview-analytics-agent-api-gateway-1  Started\n== smoke: wait /health ==\ncurl: (56) Recv failure: Connection reset by peer\nOK: /health\n"
+    }
+  ],
+  "meta": {
+    "autofix": false,
+    "llm": false
+  }
+}

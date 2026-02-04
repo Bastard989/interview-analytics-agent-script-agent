@@ -1,0 +1,35 @@
+{
+  "version": "v1",
+  "queues": {
+    "stt": {
+      "fields": [
+        "meeting_id",
+        "chunk_seq",
+        "blob_key",
+        "timestamp"
+      ]
+    },
+    "enhancer": {
+      "fields": [
+        "meeting_id"
+      ]
+    },
+    "analytics": {
+      "fields": [
+        "meeting_id"
+      ]
+    },
+    "delivery": {
+      "fields": [
+        "meeting_id"
+      ]
+    },
+    "retention": {
+      "fields": [
+        "entity_type",
+        "entity_id",
+        "reason"
+      ]
+    }
+  }
+}

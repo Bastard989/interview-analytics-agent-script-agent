@@ -1,0 +1,41 @@
+{
+  "version": "v1",
+  "description": "WebSocket realtime protocol for interview analytics",
+  "events": {
+    "audio.chunk": {
+      "direction": "client_to_server",
+      "fields": [
+        "schema_version",
+        "meeting_id",
+        "seq",
+        "timestamp_ms",
+        "codec",
+        "sample_rate",
+        "channels",
+        "content_b64",
+        "speaker_hint",
+        "idempotency_key"
+      ]
+    },
+    "transcript.update": {
+      "direction": "server_to_client",
+      "fields": [
+        "schema_version",
+        "meeting_id",
+        "seq",
+        "speaker",
+        "raw_text",
+        "enhanced_text",
+        "confidence"
+      ]
+    },
+    "error": {
+      "direction": "server_to_client",
+      "fields": [
+        "schema_version",
+        "code",
+        "message"
+      ]
+    }
+  }
+}

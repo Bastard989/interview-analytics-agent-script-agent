@@ -1,0 +1,21 @@
+version: 1
+
+defaults:
+  format: json        # json|text
+  level: INFO
+  to_stdout: true
+  file_path: ""       # если задано — писать в файл
+
+loggers:
+  PROJECT_LOGGER:
+    level: INFO
+  LLM_LOGGER:
+    level: INFO
+
+rules:
+  never_log_fields:
+    - content_b64
+    - raw_transcript
+    - enhanced_transcript
+    - smtp_pass
+    - openai_api_key

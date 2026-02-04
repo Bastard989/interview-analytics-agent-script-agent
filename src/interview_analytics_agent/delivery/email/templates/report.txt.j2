@@ -1,0 +1,22 @@
+Отчёт по встрече: {{ meeting_id }}
+
+Краткое резюме:
+{{ report.summary }}
+
+Ключевые пункты:
+{% for b in report.bullets -%}
+- {{ b }}
+{% endfor %}
+
+{% if report.risk_flags and report.risk_flags|length > 0 -%}
+Риск-флаги:
+{% for r in report.risk_flags -%}
+- {{ r }}
+{% endfor %}
+{% endif %}
+
+Рекомендация:
+{{ report.recommendation }}
+
+---
+Сгенерировано автоматически агентом аналитики собеседований.

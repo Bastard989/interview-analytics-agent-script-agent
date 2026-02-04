@@ -1,0 +1,13 @@
+# Каналы доставки результатов
+
+email:
+  enabled: true
+  retry:
+    max_attempts: 3
+    backoff_seconds: 30
+
+future_channels:
+  slack:
+    enabled: false
+  webhook:
+    enabled: false

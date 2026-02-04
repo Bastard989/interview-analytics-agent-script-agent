@@ -1,0 +1,179 @@
+name: interview-analytics-agent
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: interview
+      POSTGRES_PASSWORD: interview
+      POSTGRES_DB: interview
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U interview -d interview"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server","--appendonly","yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD","redis-cli","ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api-gateway:
+    env_file:
+      - path: ./.env
+        required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_URL: postgresql+psycopg://interview:interview@postgres:5432/interview
+      REDIS_URL: redis://redis:6379/0
+      CHUNKS_DIR: /data/chunks
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+      POSTGRES_DSN: postgresql+psycopg://interview:interview@postgres:5432/interview
+      LLM_ENABLED: "false"
+    volumes:
+      - app_data:/data
+    ports:
+      - "8010:8010"
+
+  worker-stt:
+    env_file:
+      - path: ./.env
+        required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_URL: postgresql+psycopg://interview:interview@postgres:5432/interview
+      POSTGRES_DSN: postgresql+psycopg://interview:interview@postgres:5432/interview
+      REDIS_URL: redis://redis:6379/0
+      CHUNKS_DIR: /data/chunks
+      STT_PROVIDER: mock
+      LLM_ENABLED: "false"
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+    volumes:
+      - app_data:/data
+    command: ["python3","-m","apps.worker_stt.main"]
+
+  worker-enhancer:
+    env_file:
+      - path: ./.env
+        required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_URL: postgresql+psycopg://interview:interview@postgres:5432/interview
+      POSTGRES_DSN: postgresql+psycopg://interview:interview@postgres:5432/interview
+      REDIS_URL: redis://redis:6379/0
+      CHUNKS_DIR: /data/chunks
+      LLM_ENABLED: "false"
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+    volumes:
+      - app_data:/data
+    command: ["python3","-m","apps.worker_enhancer.main"]
+
+  worker-analytics:
+    env_file:
+      - path: ./.env
+        required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_URL: postgresql+psycopg://interview:interview@postgres:5432/interview
+      POSTGRES_DSN: postgresql+psycopg://interview:interview@postgres:5432/interview
+      REDIS_URL: redis://redis:6379/0
+      CHUNKS_DIR: /data/chunks
+      LLM_ENABLED: "false"
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+    volumes:
+      - app_data:/data
+    command: ["python3","-m","apps.worker_analytics.main"]
+
+  worker-delivery:
+    env_file:
+      - path: ./.env
+        required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_URL: postgresql+psycopg://interview:interview@postgres:5432/interview
+      POSTGRES_DSN: postgresql+psycopg://interview:interview@postgres:5432/interview
+      REDIS_URL: redis://redis:6379/0
+      CHUNKS_DIR: /data/chunks
+      LLM_ENABLED: "false"
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+    volumes:
+      - app_data:/data
+    command: ["python3","-m","apps.worker_delivery.main"]
+
+  worker-retention:
+    env_file:
+      - path: ./.env
+        required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_URL: postgresql+psycopg://interview:interview@postgres:5432/interview
+      POSTGRES_DSN: postgresql+psycopg://interview:interview@postgres:5432/interview
+      REDIS_URL: redis://redis:6379/0
+      CHUNKS_DIR: /data/chunks
+      LLM_ENABLED: "false"
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+    volumes:
+      - app_data:/data
+    command: ["python3","-m","apps.worker_retention.main"]
+
+
+volumes:
+  pg_data:
+  redis_data:
+  app_data:

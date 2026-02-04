@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Отчёт по интервью</title>
+</head>
+<body>
+  <h2>Отчёт по встрече {{ meeting_id }}</h2>
+
+  <p><b>Краткое резюме:</b></p>
+  <p>{{ report.summary }}</p>
+
+  <p><b>Ключевые пункты:</b></p>
+  <ul>
+    {% for b in report.bullets %}
+      <li>{{ b }}</li>
+    {% endfor %}
+  </ul>
+
+  {% if report.risk_flags and report.risk_flags|length > 0 %}
+    <p><b>Риск-флаги:</b></p>
+    <ul>
+      {% for r in report.risk_flags %}
+        <li>{{ r }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <p><b>Рекомендация:</b></p>
+  <p>{{ report.recommendation }}</p>
+
+  <hr/>
+  <p style="color:#666;font-size:12px;">
+    Сгенерировано автоматически агентом аналитики собеседований.
+  </p>
+</body>
+</html>

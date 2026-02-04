@@ -1,0 +1,24 @@
+# Политика хранения данных и артефактов
+
+audio:
+  enabled: true
+  retention_days: 14
+  delete_source: true
+
+raw_transcript:
+  enabled: true
+  retention_days: 30
+  pii_required: true
+
+enhanced_transcript:
+  enabled: true
+  retention_days: 90
+  pii_required: false
+
+reports:
+  enabled: true
+  retention_days: 365
+
+delivery_logs:
+  enabled: true
+  retention_days: 180

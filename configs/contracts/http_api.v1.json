@@ -1,0 +1,32 @@
+{
+  "version": "v1",
+  "description": "HTTP API contract for Interview Analytics Agent",
+  "endpoints": {
+    "POST /v1/meetings/start": {
+      "request_fields": [
+        "api_version",
+        "meeting_id",
+        "mode",
+        "language",
+        "consent",
+        "context",
+        "recipients"
+      ],
+      "response_fields": [
+        "api_version",
+        "meeting_id",
+        "status"
+      ]
+    },
+    "GET /v1/meetings/{meeting_id}": {
+      "response_fields": [
+        "api_version",
+        "meeting_id",
+        "status",
+        "raw_transcript",
+        "enhanced_transcript",
+        "report"
+      ]
+    }
+  }
+}
