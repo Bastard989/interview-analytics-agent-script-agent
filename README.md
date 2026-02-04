@@ -23,6 +23,8 @@ Production-ориентированный backend для транскрибац�
   требует `docker compose --profile observability up -d`)
 - `make load-guardrail` (нагрузочный guardrail по latency/error-rate/throughput; отчет в `reports/realtime_load_guardrail.json`)
   - для строгой проверки admin-контуров добавь `--strict-admin-checks`.
+- `make ws-guardrail` (нагрузочный guardrail по WS-контурам `/v1/ws` и `/v1/ws/internal`;
+  отчет в `reports/ws_contours_guardrail.json`)
 
 Сценарий smoke:
 1. `POST /v1/meetings/start`
@@ -146,7 +148,7 @@ GitHub Actions запускает:
 
 Отдельный workflow `Performance Smoke` (nightly + manual):
 - поднимает стек в `STT_PROVIDER=mock`,
-- гоняет `tools/realtime_load_guardrail.py` с порогами,
+- гоняет `tools/realtime_load_guardrail.py` и `tools/ws_contours_guardrail.py` с порогами,
 - сохраняет артефакт `realtime-load-guardrail-report`.
 
 Release automation:

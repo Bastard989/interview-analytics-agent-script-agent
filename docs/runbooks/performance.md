@@ -7,9 +7,11 @@
 2. Запустить guardrail:
    `python3 tools/realtime_load_guardrail.py --base-url http://127.0.0.1:8010 --user-key dev-user-key --service-key dev-service-key`
    - если нужно падать при недоступности admin-checks: добавь `--strict-admin-checks`.
-3. Проверить результат:
+3. Запустить WS guardrail:
+   `python3 tools/ws_contours_guardrail.py --base-url http://127.0.0.1:8010 --ws-base-url ws://127.0.0.1:8010 --user-key dev-user-key --service-key dev-service-key --strict-split-check`
+4. Проверить результат:
    - stdout: `load guardrail OK|FAILED`
-   - отчет: `reports/realtime_load_guardrail.json`
+   - отчеты: `reports/realtime_load_guardrail.json`, `reports/ws_contours_guardrail.json`
 
 ## Что проверяется
 
@@ -18,10 +20,12 @@
 - `p95_e2e_ms` — p95 от первого chunk до готового `report`.
 - `throughput_meetings_per_min` — успешные встречи в минуту.
 - `total_dlq_depth` — суммарная глубина DLQ (если передан `--service-key`).
+- `auth_split` — корректный deny для смешивания ролей WS-контуров.
+- `p95_ws_send_ms` — p95 latency `ws.send()` при ingest в `/v1/ws` и `/v1/ws/internal`.
 
 ## Действия, если guardrail упал
 
-1. Проверить `failed_meetings` и `checks` в JSON-отчете.
+1. Проверить `failed_meetings`/`failed_runs` и `checks` в JSON-отчете.
 2. Проверить admin endpoint: `GET /v1/admin/queues/health`.
 3. Проверить метрики и backlog:
    - `/metrics`

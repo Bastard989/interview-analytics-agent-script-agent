@@ -63,12 +63,32 @@ jobs:
             --report-timeout-sec 120 \
             --report-json reports/realtime_load_guardrail.json
 
+      - name: WS contours guardrail
+        run: |
+          docker compose run --rm -T \
+            -v "$(pwd):/app" \
+            -e PYTHONPATH=/app:/app/src \
+            api-gateway \
+            python tools/ws_contours_guardrail.py \
+            --base-url http://api-gateway:8010 \
+            --ws-base-url ws://api-gateway:8010 \
+            --user-key dev-user-key \
+            --service-key dev-service-key \
+            --meetings-per-contour 8 \
+            --concurrency 6 \
+            --chunks-per-meeting 2 \
+            --report-timeout-sec 120 \
+            --strict-split-check \
+            --report-json reports/ws_contours_guardrail.json
+
       - name: Upload performance report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: realtime-load-guardrail-report
-          path: reports/realtime_load_guardrail.json
+          path: |
+            reports/realtime_load_guardrail.json
+            reports/ws_contours_guardrail.json
           if-no-files-found: ignore
 
       - name: Compose down
