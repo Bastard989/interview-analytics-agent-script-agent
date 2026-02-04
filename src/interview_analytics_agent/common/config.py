@@ -105,6 +105,9 @@ class Settings(BaseSettings):
     sberjazz_retry_backoff_ms: int = Field(default=300, alias="SBERJAZZ_RETRY_BACKOFF_MS")
     sberjazz_session_ttl_sec: int = Field(default=86_400, alias="SBERJAZZ_SESSION_TTL_SEC")
     sberjazz_reconcile_stale_sec: int = Field(default=900, alias="SBERJAZZ_RECONCILE_STALE_SEC")
+    reconciliation_enabled: bool = Field(default=True, alias="RECONCILIATION_ENABLED")
+    reconciliation_interval_sec: int = Field(default=60, alias="RECONCILIATION_INTERVAL_SEC")
+    reconciliation_limit: int = Field(default=200, alias="RECONCILIATION_LIMIT")
 
     # -------------------------------------------------------------------------
     # LLM (OpenAI-compatible)

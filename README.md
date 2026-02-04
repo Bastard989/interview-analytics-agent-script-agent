@@ -43,6 +43,12 @@ Production-ориентированный backend для транскрибац�
 Security audit логи:
 - `security_audit_allow` и `security_audit_deny` (endpoint, method, subject, auth_type, reason).
 
+## Reconciliation worker
+
+- `worker-reconciliation` запускает авто-reconnect stale connector-сессий.
+- Настройки: `RECONCILIATION_ENABLED`, `RECONCILIATION_INTERVAL_SEC`, `RECONCILIATION_LIMIT`,
+  `SBERJAZZ_RECONCILE_STALE_SEC`.
+
 ## Стек наблюдаемости (опциональный профиль)
 
 Запуск:

@@ -255,6 +255,40 @@ services:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
+  worker-reconciliation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      POSTGRES_DSN: ${POSTGRES_DSN:-postgresql+psycopg://interview:interview@postgres:5432/interview}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      MEETING_CONNECTOR_PROVIDER: ${MEETING_CONNECTOR_PROVIDER:-sberjazz_mock}
+      SBERJAZZ_API_BASE: ${SBERJAZZ_API_BASE:-}
+      SBERJAZZ_API_TOKEN: ${SBERJAZZ_API_TOKEN:-}
+      SBERJAZZ_TIMEOUT_SEC: ${SBERJAZZ_TIMEOUT_SEC:-10}
+      SBERJAZZ_RETRIES: ${SBERJAZZ_RETRIES:-2}
+      SBERJAZZ_RETRY_BACKOFF_MS: ${SBERJAZZ_RETRY_BACKOFF_MS:-300}
+      SBERJAZZ_SESSION_TTL_SEC: ${SBERJAZZ_SESSION_TTL_SEC:-86400}
+      SBERJAZZ_RECONCILE_STALE_SEC: ${SBERJAZZ_RECONCILE_STALE_SEC:-900}
+      RECONCILIATION_ENABLED: ${RECONCILIATION_ENABLED:-true}
+      RECONCILIATION_INTERVAL_SEC: ${RECONCILIATION_INTERVAL_SEC:-60}
+      RECONCILIATION_LIMIT: ${RECONCILIATION_LIMIT:-200}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+    command: ["python3", "-m", "apps.worker_reconciliation.main"]
+    volumes:
+      - app_data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:v2.54.1
     profiles: ["observability"]
