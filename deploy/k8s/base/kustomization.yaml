@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: interview-agent
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - pvc.yaml
+  - api-deployment.yaml
+  - api-service.yaml
+  - worker-stt.yaml
+  - worker-enhancer.yaml
+  - worker-analytics.yaml
+  - worker-delivery.yaml
+  - worker-retention.yaml
+  - worker-reconciliation.yaml

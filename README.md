@@ -136,6 +136,22 @@ SberJazz HTTP resilience:
 - `STORAGE_MODE=local_fs` — локальный режим для dev.
 - В `APP_ENV=prod` при `STORAGE_REQUIRE_SHARED_IN_PROD=true` local storage запрещён.
 
+## Kubernetes (baseline)
+
+Базовые манифесты находятся в `deploy/k8s/base`.
+
+Запуск:
+- `kubectl apply -k deploy/k8s/base`
+
+Перед запуском:
+- замените `image` в `deploy/k8s/base/*` на ваш registry/tag;
+- заполните `deploy/k8s/base/secret.yaml` (DSN, Redis, API keys, токены);
+- при необходимости поменяйте значения в `deploy/k8s/base/configmap.yaml`.
+
+Примечания:
+- PVC рассчитан на `ReadWriteMany` (shared FS); под ваш storage‑class может потребоваться корректировка.
+- PostgreSQL/Redis ожидаются внешними (managed) и передаются через секреты.
+
 ## Стек наблюдаемости (опциональный профиль)
 
 Запуск:
