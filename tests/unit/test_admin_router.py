@@ -21,6 +21,19 @@ class _FakeRedis:
         return {"pending": 1}
 
 
+class _FakeRedisWrongType:
+    def xlen(self, stream: str) -> int:
+        if stream in {"q:stt", "q:stt:dlq"}:
+            raise RuntimeError("WRONGTYPE Operation against a key holding the wrong kind of value")
+        return 0 if stream.endswith(":dlq") else 3
+
+    def xpending(self, stream: str, group: str) -> dict[str, int]:
+        _ = group
+        if stream == "q:stt":
+            raise RuntimeError("WRONGTYPE Operation against a key holding the wrong kind of value")
+        return {"pending": 1}
+
+
 @pytest.fixture()
 def auth_settings():
     s = get_settings()
@@ -88,6 +101,25 @@ def test_admin_queue_health_requires_service_key(monkeypatch, auth_settings) -> 
     assert ok.status_code == 200
     data = ok.json()
     assert len(data["queues"]) == 5
+
+
+def test_admin_queue_health_tolerates_wrongtype(monkeypatch, auth_settings) -> None:
+    auth_settings.auth_mode = "api_key"
+    auth_settings.service_api_keys = "svc-1"
+
+    monkeypatch.setattr(
+        "apps.api_gateway.routers.admin.redis_client", lambda: _FakeRedisWrongType()
+    )
+    client = TestClient(app)
+    resp = client.get("/v1/admin/queues/health", headers={"X-API-Key": "svc-1"})
+    assert resp.status_code == 200
+    data = resp.json()
+
+    stt = next(item for item in data["queues"] if item["queue"] == "q:stt")
+    assert stt["depth"] == 0
+    assert stt["pending"] == 0
+    assert stt["dlq_depth"] == 0
+    assert "WRONGTYPE" in (stt.get("error") or "")
 
 
 def test_admin_queue_health_allows_service_jwt(monkeypatch, auth_settings) -> None:

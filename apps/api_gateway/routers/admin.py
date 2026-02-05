@@ -58,6 +58,7 @@ class QueueHealthItem(BaseModel):
     depth: int
     pending: int
     dlq_depth: int
+    error: str | None = None
 
 
 class QueueHealthResponse(BaseModel):
@@ -217,16 +218,6 @@ def _xpending_count(r, stream: str, group: str) -> int:
 def admin_queues_health() -> QueueHealthResponse:
     try:
         r = redis_client()
-        queues = [
-            QueueHealthItem(
-                queue=queue,
-                group=group,
-                depth=int(r.xlen(queue)),
-                pending=_xpending_count(r, queue, group),
-                dlq_depth=int(r.xlen(stream_dlq_name(queue))),
-            )
-            for queue, group in _QUEUE_GROUPS.items()
-        ]
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -236,6 +227,39 @@ def admin_queues_health() -> QueueHealthResponse:
                 "details": {"err": str(e)[:200]},
             },
         ) from e
+
+    queues: list[QueueHealthItem] = []
+    for queue, group in _QUEUE_GROUPS.items():
+        err_parts: list[str] = []
+
+        try:
+            depth = int(r.xlen(queue))
+        except Exception as e:
+            depth = 0
+            err_parts.append(f"depth:{str(e)[:160]}")
+
+        try:
+            pending = _xpending_count(r, queue, group)
+        except Exception as e:
+            pending = 0
+            err_parts.append(f"pending:{str(e)[:160]}")
+
+        try:
+            dlq_depth = int(r.xlen(stream_dlq_name(queue)))
+        except Exception as e:
+            dlq_depth = 0
+            err_parts.append(f"dlq:{str(e)[:160]}")
+
+        queues.append(
+            QueueHealthItem(
+                queue=queue,
+                group=group,
+                depth=depth,
+                pending=pending,
+                dlq_depth=dlq_depth,
+                error=(" | ".join(err_parts) if err_parts else None),
+            )
+        )
 
     return QueueHealthResponse(queues=queues)
 

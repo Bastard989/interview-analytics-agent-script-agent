@@ -1616,6 +1616,17 @@
           "dlq_depth": {
             "type": "integer",
             "title": "Dlq Depth"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
           }
         },
         "type": "object",

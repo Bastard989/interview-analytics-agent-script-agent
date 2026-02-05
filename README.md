@@ -61,6 +61,7 @@ HTTP ingest контуры:
 ## Внутренний Admin API (только service)
 
 - `GET /v1/admin/queues/health` — состояние queue/DLQ/pending.
+  При частичных проблемах Redis endpoint возвращает `200` с per-queue `error`, не ломая весь ответ.
 - `GET /v1/admin/storage/health` — healthcheck blob storage (режим, путь, read/write probe).
 - `GET /v1/admin/system/readiness` — runtime readiness-check (prod-policy/конфигурация).
 - `POST /v1/admin/connectors/sberjazz/{meeting_id}/join` — инициировать live-подключение коннектора.
