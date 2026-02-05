@@ -18,5 +18,16 @@
 Рекомендация:
 {{ report.recommendation }}
 
+{% if has_raw or has_enhanced -%}
+
+Транскрипты во вложениях:
+{% if has_raw -%}
+- raw_transcript.txt
+{% endif -%}
+{% if has_enhanced -%}
+- enhanced_transcript.txt
+{% endif -%}
+{% endif %}
+
 ---
 Сгенерировано автоматически агентом аналитики собеседований.

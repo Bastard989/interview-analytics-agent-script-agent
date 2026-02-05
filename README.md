@@ -130,6 +130,12 @@ SberJazz HTTP resilience:
 - Для HTTP можно передавать `X-Trace-Id` (32 hex), он возвращается в response header.
 - Если OTEL-зависимости/endpoint недоступны, сервис продолжает работать (fail-safe no-op).
 
+## Delivery (Email)
+
+- При `DELIVERY_PROVIDER=email` отчёт отправляется по SMTP.
+- Если доступны `raw_transcript` и `enhanced_transcript`, они отправляются во вложениях:
+  `raw_transcript.txt` и `enhanced_transcript.txt`.
+
 ## Storage mode (production)
 
 - `STORAGE_MODE=shared_fs` — production режим (shared POSIX storage, например managed NFS).

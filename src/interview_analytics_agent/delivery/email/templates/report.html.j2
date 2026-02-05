@@ -30,6 +30,16 @@
   <p><b>Рекомендация:</b></p>
   <p>{{ report.recommendation }}</p>
 
+  {% if has_raw or has_enhanced %}
+    <hr/>
+    <p><b>Транскрипты:</b></p>
+    <p>
+      Во вложениях доступны:
+      {% if has_raw %} raw_transcript.txt {% endif %}
+      {% if has_enhanced %} enhanced_transcript.txt {% endif %}
+    </p>
+  {% endif %}
+
   <hr/>
   <p style="color:#666;font-size:12px;">
     Сгенерировано автоматически агентом аналитики собеседований.

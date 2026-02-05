@@ -33,6 +33,22 @@ from interview_analytics_agent.storage.repositories import MeetingRepository
 
 log = get_project_logger()
 GROUP_DELIVERY = "g:delivery"
+_TRANSCRIPT_ATTACHMENT_MIME = "text/plain"
+
+
+def _build_transcript_attachments(
+    *, raw_text: str, enhanced_text: str
+) -> list[tuple[str, bytes, str]]:
+    attachments: list[tuple[str, bytes, str]] = []
+    if raw_text.strip():
+        attachments.append(
+            ("raw_transcript.txt", raw_text.encode("utf-8"), _TRANSCRIPT_ATTACHMENT_MIME)
+        )
+    if enhanced_text.strip():
+        attachments.append(
+            ("enhanced_transcript.txt", enhanced_text.encode("utf-8"), _TRANSCRIPT_ATTACHMENT_MIME)
+        )
+    return attachments
 
 
 def _jinja() -> Environment:
@@ -74,16 +90,27 @@ def run_loop() -> None:
                         "risk_flags": [],
                         "recommendation": "",
                     }
+                    raw_transcript = (m.raw_transcript if m else None) or ""
+                    enhanced_transcript = (m.enhanced_transcript if m else None) or ""
                     recipients = []
                     if m and isinstance(m.context, dict):
                         # Если ты захочешь — потом положим recipients в context при /meetings/start
                         recipients = m.context.get("recipients", []) or []
 
                     html = env.get_template("report.html.j2").render(
-                        meeting_id=meeting_id, report=report
+                        meeting_id=meeting_id,
+                        report=report,
+                        has_raw=bool(raw_transcript.strip()),
+                        has_enhanced=bool(enhanced_transcript.strip()),
                     )
                     txt = env.get_template("report.txt.j2").render(
-                        meeting_id=meeting_id, report=report
+                        meeting_id=meeting_id,
+                        report=report,
+                        has_raw=bool(raw_transcript.strip()),
+                        has_enhanced=bool(enhanced_transcript.strip()),
+                    )
+                    attachments = _build_transcript_attachments(
+                        raw_text=raw_transcript, enhanced_text=enhanced_transcript
                     )
 
                     if settings.delivery_provider == "email" and recipients:
@@ -93,7 +120,7 @@ def run_loop() -> None:
                             subject=f"Отчёт по встрече {meeting_id}",
                             html_body=html,
                             text_body=txt,
-                            attachments=None,
+                            attachments=attachments,
                         )
                         log.info(
                             "delivery_done",

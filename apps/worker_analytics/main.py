@@ -20,7 +20,10 @@ from interview_analytics_agent.common.metrics import QUEUE_TASKS_TOTAL, track_st
 from interview_analytics_agent.common.otel import maybe_setup_otel
 from interview_analytics_agent.common.tracing import start_trace_from_payload
 from interview_analytics_agent.domain.enums import PipelineStatus
-from interview_analytics_agent.processing.aggregation import build_enhanced_transcript
+from interview_analytics_agent.processing.aggregation import (
+    build_enhanced_transcript,
+    build_raw_transcript,
+)
 from interview_analytics_agent.processing.analytics import build_report
 from interview_analytics_agent.queue.dispatcher import Q_ANALYTICS, enqueue_delivery
 from interview_analytics_agent.queue.retry import requeue_with_backoff
@@ -61,11 +64,13 @@ def run_loop() -> None:
                     ctx = (m.context if m else {}) or {}
 
                     segs = srepo.list_by_meeting(meeting_id)
+                    raw = build_raw_transcript(segs)
                     enhanced = build_enhanced_transcript(segs)
 
                     report = build_report(enhanced_transcript=enhanced, meeting_context=ctx)
 
                     if m:
+                        m.raw_transcript = raw
                         m.enhanced_transcript = enhanced
                         m.report = report
                         m.status = PipelineStatus.processing

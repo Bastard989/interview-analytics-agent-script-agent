@@ -13,6 +13,25 @@ from collections.abc import Iterable
 from interview_analytics_agent.storage.models import TranscriptSegment
 
 
+def build_raw_transcript(segments: Iterable[TranscriptSegment]) -> str:
+    """
+    Собирает сырой транскрипт в один текст.
+
+    Формат MVP:
+    [SPEAKER]: text
+    """
+    lines: list[str] = []
+
+    for s in segments:
+        speaker = s.speaker or "UNKNOWN"
+        text = (s.raw_text or "").strip()
+        if not text:
+            continue
+        lines.append(f"{speaker}: {text}")
+
+    return "\n".join(lines).strip()
+
+
 def build_enhanced_transcript(segments: Iterable[TranscriptSegment]) -> str:
     """
     Собирает улучшенный транскрипт в один текст.
