@@ -56,6 +56,7 @@ HTTP ingest контуры:
 - `AUTH_MODE=none` — только для local/dev
 - `AUTH_MODE=api_key` — статические API ключи
 - `AUTH_MODE=jwt` — JWT/OIDC + опциональный fallback на service API key
+- В `APP_ENV=prod` при `AUTH_REQUIRE_JWT_IN_PROD=true` требуется `AUTH_MODE=jwt`.
 - В `APP_ENV=prod` fallback на service API key автоматически отключается (только Bearer JWT).
 
 ## Внутренний Admin API (только service)

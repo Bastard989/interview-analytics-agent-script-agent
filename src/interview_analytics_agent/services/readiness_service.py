@@ -81,6 +81,14 @@ def evaluate_readiness() -> ReadinessState:
                     message="AUTH_MODE=none запрещен в prod",
                 )
             )
+        if bool(getattr(s, "auth_require_jwt_in_prod", True)) and auth_mode != "jwt":
+            issues.append(
+                ReadinessIssue(
+                    severity="error",
+                    code="auth_mode_must_be_jwt_in_prod",
+                    message="В prod требуется AUTH_MODE=jwt (AUTH_REQUIRE_JWT_IN_PROD=true)",
+                )
+            )
         if auth_mode == "jwt":
             if bool(getattr(s, "allow_service_api_key_in_jwt_mode", True)):
                 issues.append(

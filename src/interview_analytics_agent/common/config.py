@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     allow_service_api_key_in_jwt_mode: bool = Field(
         default=True, alias="ALLOW_SERVICE_API_KEY_IN_JWT_MODE"
     )
+    auth_require_jwt_in_prod: bool = Field(default=True, alias="AUTH_REQUIRE_JWT_IN_PROD")
     oidc_issuer_url: str | None = Field(default=None, alias="OIDC_ISSUER_URL")
     oidc_jwks_url: str | None = Field(default=None, alias="OIDC_JWKS_URL")
     oidc_audience: str | None = Field(default=None, alias="OIDC_AUDIENCE")
