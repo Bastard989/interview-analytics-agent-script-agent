@@ -129,6 +129,27 @@ Tenant‑изоляция (если включена):
 
 Если не хочешь включать JWT сейчас — оставь `AUTH_MODE=api_key` и работай через `API_KEYS`.
 
+## Secrets manager (Vault)
+
+Поддерживается Vault KV (v2/v1). Секреты подгружаются **до** инициализации `Settings`.
+
+Минимум (KV v2):
+- `SECRETS_PROVIDER=vault`
+- `VAULT_ADDR=https://vault.example.com`
+- `VAULT_TOKEN=...` (или `VAULT_TOKEN_FILE=/run/secrets/vault_token`)
+- `VAULT_KV_MOUNT=secret`
+- `VAULT_SECRET_PATH=interview-agent`
+- `VAULT_FIELD_MAP=API_KEYS=api_keys,SERVICE_API_KEYS=service_api_keys,JWT_SHARED_SECRET=jwt_shared_secret`
+
+Опции:
+- `VAULT_NAMESPACE` (enterprise namespace)
+- `VAULT_TIMEOUT_SEC=5`
+- `VAULT_KV_VERSION=2` (или `1`)
+- `VAULT_SKIP_VERIFY=true` (если нужна выключенная проверка TLS)
+
+Правило приоритета:
+- если ENV уже задан, секрет **не перезаписывается**.
+
 ## Внутренний Admin API (только service)
 
 - `GET /v1/admin/queues/health` — состояние queue/DLQ/pending.

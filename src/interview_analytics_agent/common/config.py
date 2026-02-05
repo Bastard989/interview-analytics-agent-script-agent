@@ -15,6 +15,8 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from .secrets import maybe_load_external_secrets
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -270,6 +272,7 @@ def _apply_file_overrides(settings: Settings) -> None:
         setattr(settings, target, value)
 
 
+maybe_load_external_secrets()
 _SETTINGS = Settings()
 
 
