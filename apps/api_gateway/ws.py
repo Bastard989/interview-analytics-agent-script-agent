@@ -19,6 +19,7 @@ import json
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 
+from apps.api_gateway.tenancy import enforce_meeting_access, tenant_enforcement_enabled
 from interview_analytics_agent.common.config import get_settings
 from interview_analytics_agent.common.errors import ErrCode, UnauthorizedError
 from interview_analytics_agent.common.logging import get_project_logger
@@ -32,6 +33,8 @@ from interview_analytics_agent.common.tracing import start_trace
 from interview_analytics_agent.common.utils import b64_decode, safe_dict
 from interview_analytics_agent.queue.redis import redis_client
 from interview_analytics_agent.services.chunk_ingest_service import ingest_audio_chunk_bytes
+from interview_analytics_agent.storage.db import db_session
+from interview_analytics_agent.storage.repositories import MeetingRepository
 
 log = get_project_logger()
 
@@ -204,6 +207,7 @@ async def _websocket_endpoint_impl(ws: WebSocket, *, service_only: bool) -> None
     await ws.accept()
 
     meeting_id: str | None = None
+    meeting_checked = False
     forward_task: asyncio.Task | None = None
 
     try:
@@ -244,6 +248,40 @@ async def _websocket_endpoint_impl(ws: WebSocket, *, service_only: bool) -> None
                     )
                 )
                 continue
+
+            if not meeting_checked and tenant_enforcement_enabled() and not service_only:
+                def _check_meeting() -> tuple[bool, str | None]:
+                    with db_session() as s:
+                        repo = MeetingRepository(s)
+                        m = repo.get(meeting_id)
+                        if not m:
+                            return False, "Встреча не найдена"
+                        try:
+                            enforce_meeting_access(ctx, m.context)
+                        except Exception as e:
+                            msg = getattr(e, "detail", None)
+                            if isinstance(msg, dict):
+                                return False, str(msg.get("message") or "Доступ запрещён")
+                            return False, "Доступ запрещён"
+                        return True, None
+
+                ok, err = await asyncio.to_thread(_check_meeting)
+                if not ok:
+                    await ws.send_text(
+                        json.dumps(
+                            {
+                                "event_type": "error",
+                                "code": "forbidden",
+                                "message": err or "Доступ запрещён",
+                            }
+                        )
+                    )
+                    await ws.close(
+                        code=status.WS_1008_POLICY_VIOLATION,
+                        reason=err or "forbidden",
+                    )
+                    return
+                meeting_checked = True
 
             # Запускаем forward только один раз, когда получили meeting_id
             if forward_task is None:

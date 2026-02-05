@@ -13,9 +13,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from apps.api_gateway.deps import auth_dep, service_auth_write_dep
+from apps.api_gateway.tenancy import enforce_meeting_access, tenant_enforcement_enabled
 from interview_analytics_agent.common.logging import get_project_logger
+from interview_analytics_agent.common.security import AuthContext
 from interview_analytics_agent.common.tracing import start_trace
 from interview_analytics_agent.services.chunk_ingest_service import ingest_audio_chunk_b64
+from interview_analytics_agent.storage.db import db_session
+from interview_analytics_agent.storage.repositories import MeetingRepository
 
 log = get_project_logger()
 router = APIRouter()
@@ -75,12 +79,27 @@ def _ingest_chunk_impl(meeting_id: str, req: ChunkIngestRequest) -> ChunkIngestR
         )
 
 
-@router.post(
-    "/meetings/{meeting_id}/chunks",
-    response_model=ChunkIngestResponse,
-    dependencies=[Depends(auth_dep)],
-)
-def ingest_chunk(meeting_id: str, req: ChunkIngestRequest) -> ChunkIngestResponse:
+def _ensure_meeting_access(ctx: AuthContext, meeting_id: str) -> None:
+    if not tenant_enforcement_enabled():
+        return
+    with db_session() as s:
+        repo = MeetingRepository(s)
+        m = repo.get(meeting_id)
+        if not m:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "not_found", "message": "Встреча не найдена"},
+            )
+        enforce_meeting_access(ctx, m.context)
+
+
+@router.post("/meetings/{meeting_id}/chunks", response_model=ChunkIngestResponse)
+def ingest_chunk(
+    meeting_id: str,
+    req: ChunkIngestRequest,
+    ctx: AuthContext = Depends(auth_dep),
+) -> ChunkIngestResponse:
+    _ensure_meeting_access(ctx, meeting_id)
     return _ingest_chunk_impl(meeting_id=meeting_id, req=req)
 
 

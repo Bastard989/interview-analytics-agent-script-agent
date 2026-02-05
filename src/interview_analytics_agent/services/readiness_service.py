@@ -81,6 +81,24 @@ def evaluate_readiness() -> ReadinessState:
                     message="AUTH_MODE=none запрещен в prod",
                 )
             )
+        if bool(getattr(s, "tenant_enforcement_enabled", False)) and auth_mode != "jwt":
+            issues.append(
+                ReadinessIssue(
+                    severity="error",
+                    code="tenant_requires_jwt",
+                    message="TENANT_ENFORCEMENT_ENABLED=true требует AUTH_MODE=jwt",
+                )
+            )
+        if bool(getattr(s, "tenant_enforcement_enabled", False)) and not (
+            (getattr(s, "tenant_claim_key", "") or "").strip()
+        ):
+            issues.append(
+                ReadinessIssue(
+                    severity="error",
+                    code="tenant_claim_key_missing",
+                    message="TENANT_CLAIM_KEY обязателен при включённом tenant enforcement",
+                )
+            )
         if bool(getattr(s, "auth_require_jwt_in_prod", True)) and auth_mode != "jwt":
             issues.append(
                 ReadinessIssue(

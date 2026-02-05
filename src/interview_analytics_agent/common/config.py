@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     jwt_service_required_scopes_ws_internal: str = Field(
         default="agent.ws.internal,agent.admin", alias="JWT_SERVICE_REQUIRED_SCOPES_WS_INTERNAL"
     )
+    tenant_enforcement_enabled: bool = Field(
+        default=False, alias="TENANT_ENFORCEMENT_ENABLED"
+    )
+    tenant_claim_key: str = Field(default="tenant_id", alias="TENANT_CLAIM_KEY")
+    tenant_context_key: str = Field(default="tenant_id", alias="TENANT_CONTEXT_KEY")
 
     # -------------------------------------------------------------------------
     # Storage

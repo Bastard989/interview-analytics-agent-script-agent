@@ -63,6 +63,11 @@ HTTP ingest контуры:
 - В `APP_ENV=prod` fallback на service API key автоматически отключается (только Bearer JWT).
 - Для секретов поддерживаются `*_FILE` переменные (например `API_KEYS_FILE`, `SERVICE_API_KEYS_FILE`,
   `JWT_SHARED_SECRET_FILE`, `SBERJAZZ_API_TOKEN_FILE`).
+- Multi-tenant (JWT only):
+  - `TENANT_ENFORCEMENT_ENABLED=true` включает проверку tenant claim для user JWT.
+  - Claim берётся из `TENANT_CLAIM_KEY` (по умолчанию `tenant_id`) и сохраняется в `context`
+    под ключом `TENANT_CONTEXT_KEY`.
+  - В этом режиме пользовательские API ключи не поддерживаются (нужен JWT с tenant claim).
 
 ## Внутренний Admin API (только service)
 
