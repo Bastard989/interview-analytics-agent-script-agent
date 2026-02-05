@@ -69,6 +69,66 @@ HTTP ingest контуры:
     под ключом `TENANT_CONTEXT_KEY`.
   - В этом режиме пользовательские API ключи не поддерживаются (нужен JWT с tenant claim).
 
+## OIDC/JWT провайдеры (универсально)
+
+Агент валидирует JWT по стандартному OIDC (issuer/jwks/audience). Поэтому подходит любой
+провайдер уровня Keycloak/Auth0/Cognito.
+
+Базовые переменные:
+- `AUTH_MODE=jwt`
+- `OIDC_ISSUER_URL=https://<issuer>/realms/<realm>` (или `OIDC_JWKS_URL=...`)
+- `OIDC_AUDIENCE=<client_id>`
+- `OIDC_ALGORITHMS=RS256`
+
+### Роли и service‑доступ
+Есть два способа распознать service‑JWT:
+1) **Через роли**  
+   - `JWT_SERVICE_ROLE_CLAIM=roles`  
+   - `JWT_SERVICE_ALLOWED_ROLES=service,admin`
+2) **Через тип токена (claim)**  
+   - `JWT_SERVICE_CLAIM_KEY=token_type`  
+   - `JWT_SERVICE_CLAIM_VALUES=service,client_credentials,m2m`
+
+Scope‑проверки (для admin/write и /ws/internal):
+- `JWT_SERVICE_PERMISSION_CLAIM=scope`
+- `JWT_SERVICE_REQUIRED_SCOPES_ADMIN_READ=agent.admin.read,agent.admin`
+- `JWT_SERVICE_REQUIRED_SCOPES_ADMIN_WRITE=agent.admin.write,agent.admin`
+- `JWT_SERVICE_REQUIRED_SCOPES_WS_INTERNAL=agent.ws.internal,agent.admin`
+
+Tenant‑изоляция (если включена):
+- `TENANT_ENFORCEMENT_ENABLED=true`
+- `TENANT_CLAIM_KEY=tenant_id`
+- `TENANT_CONTEXT_KEY=tenant_id`
+
+### Keycloak (пример)
+1) Создай Realm и Client (OIDC).
+2) Включи **Protocol Mapper**, чтобы вывести нужные claims в **top‑level** токена:
+   - `tenant_id` (если используешь tenant‑изоляцию).
+   - `roles` (или `token_type`) для service‑JWT.
+3) Настрой переменные:
+   - `OIDC_ISSUER_URL=https://<keycloak>/realms/<realm>`
+   - `OIDC_AUDIENCE=<client_id>`
+   - `JWT_SERVICE_ROLE_CLAIM=roles`
+   - `JWT_SERVICE_ALLOWED_ROLES=service,admin`
+
+### Auth0 (пример)
+1) Создай API (audience) и Application.
+2) Добавь custom claims (например `tenant_id`) через Rules/Actions.
+3) Настрой переменные:
+   - `OIDC_ISSUER_URL=https://<your-domain>.auth0.com/`
+   - `OIDC_AUDIENCE=<api_audience>`
+   - `JWT_SERVICE_CLAIM_KEY=token_type` и `JWT_SERVICE_CLAIM_VALUES=service`
+
+### AWS Cognito (пример)
+1) User Pool + App Client.
+2) Добавь кастомный атрибут `custom:tenant_id` и маппинг в токен (top‑level).
+3) Настрой переменные:
+   - `OIDC_ISSUER_URL=https://cognito-idp.<region>.amazonaws.com/<user_pool_id>`
+   - `OIDC_AUDIENCE=<app_client_id>`
+   - `TENANT_CLAIM_KEY=tenant_id` (если mapped в top‑level)
+
+Если не хочешь включать JWT сейчас — оставь `AUTH_MODE=api_key` и работай через `API_KEYS`.
+
 ## Внутренний Admin API (только service)
 
 - `GET /v1/admin/queues/health` — состояние queue/DLQ/pending.
