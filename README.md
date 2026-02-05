@@ -108,6 +108,8 @@ SberJazz HTTP resilience:
 - Для `MEETING_CONNECTOR_PROVIDER=sberjazz` в `APP_ENV=prod` readiness ожидает:
   `SBERJAZZ_API_BASE=https://...`, непустой `SBERJAZZ_API_TOKEN`, `AUTH_MODE=jwt`
   (`SBERJAZZ_REQUIRE_HTTPS_IN_PROD=true`).
+- Startup probe для real SberJazz в prod:
+  `SBERJAZZ_STARTUP_PROBE_ENABLED=true`, `SBERJAZZ_STARTUP_PROBE_FAIL_FAST_IN_PROD=true`.
 
 ## Storage mode (production)
 

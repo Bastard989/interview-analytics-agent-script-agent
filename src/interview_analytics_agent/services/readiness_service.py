@@ -159,10 +159,58 @@ def evaluate_readiness() -> ReadinessState:
     return ReadinessState(ready=ready, issues=issues)
 
 
+def _get_sberjazz_connector_health():
+    from interview_analytics_agent.services.sberjazz_service import get_sberjazz_connector_health
+
+    return get_sberjazz_connector_health()
+
+
 def enforce_startup_readiness(*, service_name: str) -> ReadinessState:
     s = get_settings()
     state = evaluate_readiness()
-    errors = [i for i in state.issues if i.severity == "error"]
+    issues = list(state.issues)
+
+    provider = (s.meeting_connector_provider or "").strip().lower()
+    is_prod = _is_prod_env(s.app_env)
+    if (
+        is_prod
+        and provider == "sberjazz"
+        and bool(getattr(s, "sberjazz_startup_probe_enabled", True))
+    ):
+        try:
+            health = _get_sberjazz_connector_health()
+            if not health.healthy:
+                severity = (
+                    "error"
+                    if bool(getattr(s, "sberjazz_startup_probe_fail_fast_in_prod", True))
+                    else "warning"
+                )
+                issues.append(
+                    ReadinessIssue(
+                        severity=severity,
+                        code="sberjazz_startup_probe_failed",
+                        message="Startup probe: SberJazz connector health=false",
+                    )
+                )
+        except Exception:
+            severity = (
+                "error"
+                if bool(getattr(s, "sberjazz_startup_probe_fail_fast_in_prod", True))
+                else "warning"
+            )
+            issues.append(
+                ReadinessIssue(
+                    severity=severity,
+                    code="sberjazz_startup_probe_error",
+                    message="Startup probe: ошибка проверки SberJazz connector health",
+                )
+            )
+
+    state = ReadinessState(
+        ready=all(i.severity != "error" for i in issues),
+        issues=issues,
+    )
+    errors = [i for i in issues if i.severity == "error"]
 
     if errors:
         log.error(

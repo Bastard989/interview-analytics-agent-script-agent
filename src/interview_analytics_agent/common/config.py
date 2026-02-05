@@ -154,6 +154,12 @@ class Settings(BaseSettings):
     sberjazz_require_https_in_prod: bool = Field(
         default=True, alias="SBERJAZZ_REQUIRE_HTTPS_IN_PROD"
     )
+    sberjazz_startup_probe_enabled: bool = Field(
+        default=True, alias="SBERJAZZ_STARTUP_PROBE_ENABLED"
+    )
+    sberjazz_startup_probe_fail_fast_in_prod: bool = Field(
+        default=True, alias="SBERJAZZ_STARTUP_PROBE_FAIL_FAST_IN_PROD"
+    )
     sberjazz_mock_live_chunks_b64: str = Field(default="", alias="SBERJAZZ_MOCK_LIVE_CHUNKS_B64")
     reconciliation_enabled: bool = Field(default=True, alias="RECONCILIATION_ENABLED")
     reconciliation_interval_sec: int = Field(default=60, alias="RECONCILIATION_INTERVAL_SEC")

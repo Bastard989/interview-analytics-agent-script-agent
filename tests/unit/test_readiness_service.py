@@ -174,3 +174,116 @@ def test_readiness_prod_sberjazz_requires_strict_connector_policy() -> None:
             s.sberjazz_api_token,
             s.sberjazz_require_https_in_prod,
         ) = snapshot
+
+
+def test_startup_readiness_fails_on_sberjazz_probe_when_strict(monkeypatch) -> None:
+    class _Health:
+        healthy = False
+
+    s = get_settings()
+    snapshot = (
+        s.app_env,
+        s.auth_mode,
+        s.oidc_issuer_url,
+        s.oidc_jwks_url,
+        s.storage_mode,
+        s.cors_allowed_origins,
+        s.meeting_connector_provider,
+        s.sberjazz_api_base,
+        s.sberjazz_api_token,
+        s.sberjazz_startup_probe_enabled,
+        s.sberjazz_startup_probe_fail_fast_in_prod,
+        s.readiness_fail_fast_in_prod,
+    )
+    try:
+        s.app_env = "prod"
+        s.auth_mode = "jwt"
+        s.oidc_jwks_url = "https://issuer.local/jwks"
+        s.oidc_issuer_url = None
+        s.storage_mode = "shared_fs"
+        s.cors_allowed_origins = "https://example.com"
+        s.meeting_connector_provider = "sberjazz"
+        s.sberjazz_api_base = "https://sj.example.local"
+        s.sberjazz_api_token = "token"
+        s.sberjazz_startup_probe_enabled = True
+        s.sberjazz_startup_probe_fail_fast_in_prod = True
+        s.readiness_fail_fast_in_prod = True
+        monkeypatch.setattr(
+            "interview_analytics_agent.services.readiness_service._get_sberjazz_connector_health",
+            lambda: _Health(),
+        )
+        with pytest.raises(RuntimeError, match="sberjazz_startup_probe_failed"):
+            enforce_startup_readiness(service_name="api-gateway")
+    finally:
+        (
+            s.app_env,
+            s.auth_mode,
+            s.oidc_issuer_url,
+            s.oidc_jwks_url,
+            s.storage_mode,
+            s.cors_allowed_origins,
+            s.meeting_connector_provider,
+            s.sberjazz_api_base,
+            s.sberjazz_api_token,
+            s.sberjazz_startup_probe_enabled,
+            s.sberjazz_startup_probe_fail_fast_in_prod,
+            s.readiness_fail_fast_in_prod,
+        ) = snapshot
+
+
+def test_startup_readiness_warns_on_sberjazz_probe_when_not_strict(monkeypatch) -> None:
+    class _Health:
+        healthy = False
+
+    s = get_settings()
+    snapshot = (
+        s.app_env,
+        s.auth_mode,
+        s.oidc_issuer_url,
+        s.oidc_jwks_url,
+        s.storage_mode,
+        s.cors_allowed_origins,
+        s.meeting_connector_provider,
+        s.sberjazz_api_base,
+        s.sberjazz_api_token,
+        s.sberjazz_startup_probe_enabled,
+        s.sberjazz_startup_probe_fail_fast_in_prod,
+        s.readiness_fail_fast_in_prod,
+    )
+    try:
+        s.app_env = "prod"
+        s.auth_mode = "jwt"
+        s.oidc_jwks_url = "https://issuer.local/jwks"
+        s.oidc_issuer_url = None
+        s.storage_mode = "shared_fs"
+        s.cors_allowed_origins = "https://example.com"
+        s.meeting_connector_provider = "sberjazz"
+        s.sberjazz_api_base = "https://sj.example.local"
+        s.sberjazz_api_token = "token"
+        s.sberjazz_startup_probe_enabled = True
+        s.sberjazz_startup_probe_fail_fast_in_prod = False
+        s.readiness_fail_fast_in_prod = True
+        monkeypatch.setattr(
+            "interview_analytics_agent.services.readiness_service._get_sberjazz_connector_health",
+            lambda: _Health(),
+        )
+        state = enforce_startup_readiness(service_name="api-gateway")
+        issue = next((i for i in state.issues if i.code == "sberjazz_startup_probe_failed"), None)
+        assert issue is not None
+        assert issue.severity == "warning"
+        assert state.ready is True
+    finally:
+        (
+            s.app_env,
+            s.auth_mode,
+            s.oidc_issuer_url,
+            s.oidc_jwks_url,
+            s.storage_mode,
+            s.cors_allowed_origins,
+            s.meeting_connector_provider,
+            s.sberjazz_api_base,
+            s.sberjazz_api_token,
+            s.sberjazz_startup_probe_enabled,
+            s.sberjazz_startup_probe_fail_fast_in_prod,
+            s.readiness_fail_fast_in_prod,
+        ) = snapshot
