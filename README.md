@@ -17,7 +17,8 @@ Production-ориентированный backend для транскрибац�
 ## E2E Smoke
 
 - `python3 tools/e2e_local.py`
-- `python3 tools/e2e_connector_live.py` (realtime connector live-pull smoke)
+- `make e2e-connector-live` (realtime connector live-pull smoke в `sberjazz_mock`)
+- `make e2e-connector-real` (real SberJazz smoke, требует `SBERJAZZ_API_BASE` и `SBERJAZZ_API_TOKEN`)
 - `make storage-smoke` (shared storage failover smoke)
 - `make alerts-smoke` (проверка маршрутизации warning/critical алертов через Alertmanager в webhook sink;
   требует `docker compose --profile observability up -d`)
@@ -25,6 +26,10 @@ Production-ориентированный backend для транскрибац�
   - для строгой проверки admin-контуров добавь `--strict-admin-checks`.
 - `make ws-guardrail` (нагрузочный guardrail по WS-контурам `/v1/ws` и `/v1/ws/internal`;
   отчет в `reports/ws_contours_guardrail.json`)
+
+Real connector smoke (ручной запуск):
+- `SBERJAZZ_API_BASE=https://... SBERJAZZ_API_TOKEN=... make e2e-connector-real`
+- По умолчанию smoke требует готовый `report`; можно ослабить проверку запуском без `--require-report`.
 
 Сценарий smoke:
 1. `POST /v1/meetings/start`
@@ -177,6 +182,10 @@ GitHub Actions запускает:
 - гоняет `tools/realtime_load_guardrail.py` и `tools/ws_contours_guardrail.py` с порогами,
 - сохраняет артефакт `realtime-load-guardrail-report`.
 
+Отдельный ручной workflow `Connector Real Smoke`:
+- запускает `tools/e2e_connector_live.py --provider sberjazz --require-report`,
+- требует repo secrets: `SBERJAZZ_API_BASE`, `SBERJAZZ_API_TOKEN`.
+
 Release automation:
 - workflow `Release` запускается на тегах формата `v*.*.*`,
 - перед сборкой проверяет release policy (`tag == project.version`, валидный `openapi/openapi.json`),
@@ -192,3 +201,4 @@ Release automation:
 
 - Алерты и действия при инцидентах: `docs/runbooks/alerts.md`
 - Производительность и guardrail-порогы: `docs/runbooks/performance.md`
+- Real SberJazz smoke/приемка: `docs/runbooks/connector_real_smoke.md`
