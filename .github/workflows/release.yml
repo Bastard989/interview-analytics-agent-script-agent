@@ -81,6 +81,7 @@ jobs:
             python tools/realtime_load_guardrail.py \
             --base-url http://api-gateway:8010 \
             --user-key dev-user-key \
+            --service-key dev-service-key \
             --meetings 12 \
             --concurrency 6 \
             --chunks-per-meeting 2 \
@@ -89,6 +90,8 @@ jobs:
             --max-p95-ingest-ms 600 \
             --max-p95-e2e-ms 20000 \
             --min-throughput-meetings-per-min 8 \
+            --max-total-dlq-depth 0 \
+            --strict-admin-checks \
             --report-json reports/realtime_load_guardrail_release.json
           docker compose run --rm -T \
             -v "$(pwd):/app" \

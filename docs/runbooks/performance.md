@@ -20,7 +20,7 @@
 - В `CI` и `Release` используется облегченный performance gate на `STT_PROVIDER=mock`.
 - Проверяются `realtime_load_guardrail` и `ws_contours_guardrail` с уменьшенной нагрузкой
   (быстрый fail-fast на явный latency regression).
-- В light-профиле проверка `total_dlq_depth` не используется (чтобы не зависеть от admin queue health).
+- В light-профиле включён strict admin-check: `total_dlq_depth` и доступность `/v1/admin/queues/health`.
 - Отчеты сохраняются в:
   `reports/realtime_load_guardrail_ci.json`, `reports/ws_contours_guardrail_ci.json`.
 

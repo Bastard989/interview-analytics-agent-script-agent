@@ -112,6 +112,7 @@ perf-guardrail-lite:
 	$(PYTHON) tools/realtime_load_guardrail.py \
 		--base-url http://127.0.0.1:8010 \
 		--user-key dev-user-key \
+		--service-key dev-service-key \
 		--meetings 8 \
 		--concurrency 4 \
 		--chunks-per-meeting 2 \
@@ -120,6 +121,8 @@ perf-guardrail-lite:
 		--max-p95-ingest-ms 600 \
 		--max-p95-e2e-ms 20000 \
 		--min-throughput-meetings-per-min 6 \
+		--max-total-dlq-depth 0 \
+		--strict-admin-checks \
 		--report-json reports/realtime_load_guardrail_ci.json
 	$(PYTHON) tools/ws_contours_guardrail.py \
 		--base-url http://127.0.0.1:8010 \
