@@ -165,7 +165,9 @@ GitHub Actions запускает:
 - compose build + healthcheck,
 - unit tests + lint + smoke cycle,
 - OpenAPI contract check,
-- alert routing smoke (`warning`/`critical` delivery через Alertmanager -> alert-relay -> webhook sink).
+- alert rules check (`promtool` + валидация runbook anchors),
+- alert routing smoke (`warning`/`critical` delivery через Alertmanager -> alert-relay -> webhook sink),
+- alert relay metrics smoke (`/metrics` + рост `agent_alert_relay_forward_total`).
 
 Отдельный workflow `Performance Smoke` (nightly + manual):
 - поднимает стек в `STT_PROVIDER=mock`,

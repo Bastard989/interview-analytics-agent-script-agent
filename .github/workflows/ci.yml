@@ -72,6 +72,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Alert rules check (promtool + runbook anchors)
+        run: make alerts-rules-check
+
       - name: Compose build
         run: docker compose build
 
@@ -119,6 +122,13 @@ jobs:
             api-gateway \
             python tools/alerts_delivery_smoke.py \
             --alertmanager-url http://alertmanager:9093 \
+            --sink-url http://alert-webhook-sink:9080
+          docker compose run --rm -T \
+            -v "$(pwd):/app" \
+            -e PYTHONPATH=/app:/app/src \
+            api-gateway \
+            python tools/alert_relay_metrics_smoke.py \
+            --relay-url http://alert-relay:9081 \
             --sink-url http://alert-webhook-sink:9080
 
       - name: Upload cycle reports

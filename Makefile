@@ -9,7 +9,7 @@ PYTHON ?= python3
 	compose-up compose-down \
 	fmt lint fix test storage-smoke \
 	cycle cycle-autofix \
-	openapi-gen openapi-check release-check alerts-smoke load-guardrail ws-guardrail
+	openapi-gen openapi-check release-check alerts-rules-check alerts-smoke alert-relay-metrics-smoke load-guardrail ws-guardrail
 
 doctor:
 	@echo "== docker ==" && docker version >/dev/null && echo "OK"
@@ -87,8 +87,14 @@ openapi-check:
 release-check:
 	$(PYTHON) scripts/check_release.py
 
+alerts-rules-check:
+	$(PYTHON) scripts/check_alert_rules.py
+
 alerts-smoke:
 	$(PYTHON) tools/alerts_delivery_smoke.py
+
+alert-relay-metrics-smoke:
+	$(PYTHON) tools/alert_relay_metrics_smoke.py
 
 load-guardrail:
 	$(PYTHON) tools/realtime_load_guardrail.py
