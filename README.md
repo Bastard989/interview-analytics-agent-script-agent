@@ -150,7 +150,8 @@ SberJazz HTTP resilience:
 - `kubectl apply -k deploy/k8s/base`
 
 Перед запуском:
-- замените `image` в `deploy/k8s/base/*` на ваш registry/tag;
+- замените `image` в `deploy/k8s/base/*` на ваш registry/tag
+  (release workflow публикует образ в `ghcr.io/<owner>/<repo>:<tag>`);
 - заполните `deploy/k8s/base/secret.yaml` (DSN, Redis, API keys, токены);
 - при необходимости поменяйте значения в `deploy/k8s/base/configmap.yaml`.
 
