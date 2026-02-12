@@ -6,6 +6,7 @@ const el = {
   language: document.getElementById("language"),
   transcribe: document.getElementById("transcribe"),
   uploadToAgent: document.getElementById("uploadToAgent"),
+  localReport: document.getElementById("localReport"),
   autoOpen: document.getElementById("autoOpen"),
   quickStart: document.getElementById("quickStart"),
   quickStop: document.getElementById("quickStop"),
@@ -93,6 +94,7 @@ async function pollQuickStatus() {
     const meta = [
       `job_id=${job.job_id}`,
       job.mp3_path ? `mp3=${job.mp3_path}` : null,
+      job.local_report_json_path ? `report=${job.local_report_json_path}` : null,
       job.error ? `error=${job.error}` : null,
     ]
       .filter(Boolean)
@@ -131,6 +133,7 @@ async function startQuickRecord() {
     transcribe: Boolean(el.transcribe.checked),
     transcribe_language: (el.language.value || "ru").trim() || "ru",
     upload_to_agent: Boolean(el.uploadToAgent.checked),
+    build_local_report: Boolean(el.localReport.checked),
     auto_open_url: Boolean(el.autoOpen.checked),
     email_to: [],
   };

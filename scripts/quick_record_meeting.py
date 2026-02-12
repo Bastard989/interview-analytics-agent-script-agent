@@ -42,6 +42,11 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--transcribe", action="store_true", help="Run local whisper transcription after recording")
     p.add_argument("--language", default=os.getenv("QUICK_RECORD_LANGUAGE", "ru"))
     p.add_argument("--whisper-model-size", default=os.getenv("QUICK_RECORD_WHISPER_MODEL_SIZE"))
+    p.add_argument(
+        "--no-local-report",
+        action="store_true",
+        help="Disable local report generation (.report.json/.report.txt)",
+    )
 
     p.add_argument("--upload-to-agent", action="store_true", help="Upload mp3 into /v1 pipeline")
     p.add_argument("--agent-base-url", default=os.getenv("QUICK_RECORD_AGENT_BASE_URL", "http://127.0.0.1:8010"))
@@ -89,6 +94,7 @@ def main() -> int:
         transcribe=args.transcribe,
         transcribe_language=args.language,
         whisper_model_size=args.whisper_model_size,
+        build_local_report=not args.no_local_report,
         upload_to_agent=args.upload_to_agent,
         agent_base_url=args.agent_base_url,
         agent_api_key=args.agent_api_key,
@@ -107,6 +113,10 @@ def main() -> int:
     print(f"MP3 saved: {result.mp3_path}")
     if result.transcript_path:
         print(f"Transcript saved: {result.transcript_path}")
+    if result.local_report_json_path:
+        print(f"Local report JSON: {result.local_report_json_path}")
+    if result.local_report_txt_path:
+        print(f"Local report TXT: {result.local_report_txt_path}")
     if result.agent_upload:
         print(
             f"Uploaded to agent: meeting_id={result.agent_upload.meeting_id}, "

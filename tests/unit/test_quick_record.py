@@ -5,6 +5,7 @@ from pathlib import Path
 from interview_analytics_agent.quick_record import (
     QuickRecordConfig,
     build_chunk_payload,
+    build_local_report,
     normalize_agent_base_url,
     segment_step_seconds,
     upload_recording_to_agent,
@@ -93,3 +94,30 @@ def test_upload_recording_to_agent(monkeypatch, tmp_path: Path) -> None:
     assert calls["post"][0][0] == "http://127.0.0.1:8010/v1/meetings/start"
     assert calls["post"][1][0] == "http://127.0.0.1:8010/v1/meetings/quick-123/chunks"
     assert calls["get"][0][0] == "http://127.0.0.1:8010/v1/meetings/quick-123"
+
+
+def test_build_local_report_writes_json_and_text(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        "interview_analytics_agent.quick_record.build_report",
+        lambda **kwargs: {
+            "summary": f"ok:{kwargs['meeting_context']['meeting_url']}",
+            "bullets": ["b1", "b2"],
+            "risk_flags": [],
+            "recommendation": "ship",
+        },
+    )
+
+    cfg = QuickRecordConfig(meeting_url="https://jazz.sber.ru/meeting/777")
+    json_path = tmp_path / "report.json"
+    txt_path = tmp_path / "report.txt"
+    out_json, out_txt = build_local_report(
+        transcript_text="test transcript",
+        cfg=cfg,
+        output_json_path=json_path,
+        output_txt_path=txt_path,
+    )
+
+    assert out_json == json_path
+    assert out_txt == txt_path
+    assert "\"summary\": \"ok:https://jazz.sber.ru/meeting/777\"" in json_path.read_text(encoding="utf-8")
+    assert "Summary: ok:https://jazz.sber.ru/meeting/777" in txt_path.read_text(encoding="utf-8")

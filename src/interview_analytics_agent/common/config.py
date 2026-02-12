@@ -106,6 +106,9 @@ class Settings(BaseSettings):
     quick_record_agent_api_key: str | None = Field(
         default=None, alias="QUICK_RECORD_AGENT_API_KEY"
     )
+    quick_record_build_local_report: bool = Field(
+        default=True, alias="QUICK_RECORD_BUILD_LOCAL_REPORT"
+    )
     quick_record_wait_report_sec: int = Field(default=180, alias="QUICK_RECORD_WAIT_REPORT_SEC")
     quick_record_poll_interval_sec: float = Field(
         default=3.0, alias="QUICK_RECORD_POLL_INTERVAL_SEC"

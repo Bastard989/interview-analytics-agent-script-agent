@@ -11,6 +11,7 @@ Combines script-like usability (one-command recording) with production agent fea
 from __future__ import annotations
 
 import base64
+import json
 import subprocess
 import threading
 import time
@@ -26,6 +27,7 @@ import requests
 from interview_analytics_agent.common.logging import get_project_logger
 from interview_analytics_agent.delivery.base import DeliveryResult
 from interview_analytics_agent.delivery.email.sender import SMTPEmailProvider
+from interview_analytics_agent.processing.analytics import build_report
 
 log = get_project_logger()
 
@@ -53,6 +55,8 @@ class QuickRecordConfig:
     poll_interval_sec: float = 3.0
 
     email_to: list[str] | None = None
+    build_local_report: bool = True
+    local_report_context: dict[str, Any] | None = None
     external_stop_event: threading.Event | None = None
 
 
@@ -68,6 +72,8 @@ class AgentUploadResult:
 class QuickRecordResult:
     mp3_path: Path
     transcript_path: Path | None
+    local_report_json_path: Path | None
+    local_report_txt_path: Path | None
     agent_upload: AgentUploadResult | None
     email_result: DeliveryResult | None
 
@@ -82,6 +88,8 @@ class QuickRecordJobStatus:
     error: str | None = None
     mp3_path: str | None = None
     transcript_path: str | None = None
+    local_report_json_path: str | None = None
+    local_report_txt_path: str | None = None
     agent_meeting_id: str | None = None
 
 
@@ -363,6 +371,8 @@ def send_summary_email(
     cfg: QuickRecordConfig,
     mp3_path: Path,
     transcript_path: Path | None,
+    local_report_json_path: Path | None,
+    local_report_txt_path: Path | None,
     upload_result: AgentUploadResult | None,
 ) -> DeliveryResult | None:
     recipients = [r.strip() for r in (cfg.email_to or []) if r.strip()]
@@ -376,12 +386,24 @@ def send_summary_email(
     ]
     if transcript_path and transcript_path.exists():
         attachments.append((transcript_path.name, transcript_path.read_bytes(), "text/plain"))
+    if local_report_json_path and local_report_json_path.exists():
+        attachments.append(
+            (
+                local_report_json_path.name,
+                local_report_json_path.read_bytes(),
+                "application/json",
+            )
+        )
+    if local_report_txt_path and local_report_txt_path.exists():
+        attachments.append((local_report_txt_path.name, local_report_txt_path.read_bytes(), "text/plain"))
 
     text_body = (
         f"Recording finished.\n"
         f"Meeting URL: {cfg.meeting_url}\n"
         f"MP3: {mp3_path}\n"
         f"Transcript: {transcript_path or 'not generated'}\n"
+        f"Local report (json): {local_report_json_path or 'not generated'}\n"
+        f"Local report (txt): {local_report_txt_path or 'not generated'}\n"
         f"Agent meeting id: {meeting_id}\n"
     )
 
@@ -390,6 +412,10 @@ def send_summary_email(
         f"<p><b>Meeting URL:</b> {cfg.meeting_url}</p>"
         f"<p><b>MP3:</b> {mp3_path.name}</p>"
         f"<p><b>Transcript:</b> {transcript_path.name if transcript_path else 'not generated'}</p>"
+        f"<p><b>Local report JSON:</b> "
+        f"{local_report_json_path.name if local_report_json_path else 'not generated'}</p>"
+        f"<p><b>Local report TXT:</b> "
+        f"{local_report_txt_path.name if local_report_txt_path else 'not generated'}</p>"
         f"<p><b>Agent meeting id:</b> {meeting_id}</p>"
     )
 
@@ -411,6 +437,46 @@ def _validate_meeting_url(url: str) -> str:
     if not (normalized.startswith("http://") or normalized.startswith("https://")):
         raise ValueError("meeting_url must start with http:// or https://")
     return normalized
+
+
+def _report_to_text(report: dict[str, Any]) -> str:
+    bullets = report.get("bullets") or []
+    risks = report.get("risk_flags") or []
+    lines = [
+        f"Summary: {report.get('summary', '')}",
+        "",
+        "Bullets:",
+    ]
+    for item in bullets:
+        lines.append(f"- {item}")
+    lines.append("")
+    lines.append("Risk Flags:")
+    for item in risks:
+        lines.append(f"- {item}")
+    lines.append("")
+    lines.append(f"Recommendation: {report.get('recommendation', '')}")
+    return "\n".join(lines).strip() + "\n"
+
+
+def build_local_report(
+    *,
+    transcript_text: str,
+    cfg: QuickRecordConfig,
+    output_json_path: Path,
+    output_txt_path: Path,
+) -> tuple[Path, Path]:
+    context = dict(cfg.local_report_context or {})
+    context.setdefault("source", "quick_record_local")
+    context.setdefault("meeting_url", cfg.meeting_url)
+    context.setdefault("language", cfg.transcribe_language)
+
+    report = build_report(
+        enhanced_transcript=transcript_text,
+        meeting_context=context,
+    )
+    output_json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    output_txt_path.write_text(_report_to_text(report), encoding="utf-8")
+    return output_json_path, output_txt_path
 
 
 def _wait_for_stop_or_timeout(
@@ -454,6 +520,8 @@ def run_quick_record(cfg: QuickRecordConfig) -> QuickRecordResult:
     wav_path = cfg.output_dir / f"{base_name}.wav"
     mp3_path = cfg.output_dir / f"{base_name}.mp3"
     txt_path = cfg.output_dir / f"{base_name}.txt"
+    report_json_path = cfg.output_dir / f"{base_name}.report.json"
+    report_txt_path = cfg.output_dir / f"{base_name}.report.txt"
 
     if cfg.auto_open_url:
         webbrowser.open(cfg.meeting_url, new=2)
@@ -500,10 +568,29 @@ def run_quick_record(cfg: QuickRecordConfig) -> QuickRecordResult:
     if cfg.upload_to_agent:
         upload_result = upload_recording_to_agent(recording_path=mp3_path, cfg=cfg)
 
+    local_report_json_path: Path | None = None
+    local_report_txt_path: Path | None = None
+    if cfg.build_local_report:
+        report_source_text = ""
+        if transcript_path and transcript_path.exists():
+            report_source_text = transcript_path.read_text(encoding="utf-8").strip()
+        elif upload_result and upload_result.enhanced_transcript:
+            report_source_text = upload_result.enhanced_transcript.strip()
+
+        if report_source_text:
+            local_report_json_path, local_report_txt_path = build_local_report(
+                transcript_text=report_source_text,
+                cfg=cfg,
+                output_json_path=report_json_path,
+                output_txt_path=report_txt_path,
+            )
+
     email_result = send_summary_email(
         cfg=cfg,
         mp3_path=mp3_path,
         transcript_path=transcript_path,
+        local_report_json_path=local_report_json_path,
+        local_report_txt_path=local_report_txt_path,
         upload_result=upload_result,
     )
 
@@ -513,6 +600,12 @@ def run_quick_record(cfg: QuickRecordConfig) -> QuickRecordResult:
             "payload": {
                 "mp3_path": str(mp3_path),
                 "transcript_path": str(transcript_path) if transcript_path else None,
+                "local_report_json_path": (
+                    str(local_report_json_path) if local_report_json_path else None
+                ),
+                "local_report_txt_path": (
+                    str(local_report_txt_path) if local_report_txt_path else None
+                ),
                 "uploaded": bool(upload_result),
                 "email_sent": bool(email_result and email_result.ok),
             }
@@ -522,6 +615,8 @@ def run_quick_record(cfg: QuickRecordConfig) -> QuickRecordResult:
     return QuickRecordResult(
         mp3_path=mp3_path,
         transcript_path=transcript_path,
+        local_report_json_path=local_report_json_path,
+        local_report_txt_path=local_report_txt_path,
         agent_upload=upload_result,
         email_result=email_result,
     )
@@ -545,6 +640,16 @@ class QuickRecordManager:
             transcript_path=(
                 str(job.result.transcript_path)
                 if job.result and job.result.transcript_path
+                else None
+            ),
+            local_report_json_path=(
+                str(job.result.local_report_json_path)
+                if job.result and job.result.local_report_json_path
+                else None
+            ),
+            local_report_txt_path=(
+                str(job.result.local_report_txt_path)
+                if job.result and job.result.local_report_txt_path
                 else None
             ),
             agent_meeting_id=(

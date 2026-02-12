@@ -23,6 +23,7 @@ Production-ориентированный backend для транскрибац�
 - пишет системный звук сегментами с overlap;
 - собирает финальный `mp3`;
 - опционально делает локальную `whisper`-транскрибацию;
+- по умолчанию строит локальный аналитический `report.json` + `report.txt` (без обязательного API);
 - опционально отправляет запись в `/v1` пайплайн (start -> chunk -> report);
 - опционально отправляет summary email через ваш SMTP.
 
@@ -37,6 +38,21 @@ Production-ориентированный backend для транскрибац�
 
 Через Makefile:
 - `make quick-record URL="https://..."`
+
+Script-first orchestration (логика как в проекте коллеги, но с улучшениями):
+- foreground:  
+  `python3 scripts/meeting_agent.py run --url "https://..." --duration-sec 900 --transcribe`
+- background start:  
+  `python3 scripts/meeting_agent.py start --url "https://..." --duration-sec 900 --transcribe`
+- status:  
+  `python3 scripts/meeting_agent.py status --verbose`
+- stop:  
+  `python3 scripts/meeting_agent.py stop`
+
+Файлы результата после скрипта:
+- `<timestamp>.mp3`
+- `<timestamp>.txt` (если `--transcribe`)
+- `<timestamp>.report.json` и `<timestamp>.report.txt` (если не отключен `--no-local-report`)
 
 Web UI для этого агента:
 - Открой `http://localhost:8010/`

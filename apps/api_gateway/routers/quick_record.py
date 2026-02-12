@@ -23,6 +23,7 @@ class QuickRecordStartRequest(BaseModel):
     transcribe: bool = False
     transcribe_language: str = Field(default="ru", min_length=2, max_length=8)
     upload_to_agent: bool = False
+    build_local_report: bool | None = None
     agent_api_key: str | None = None
     auto_open_url: bool | None = None
     email_to: list[str] = Field(default_factory=list)
@@ -72,6 +73,11 @@ def quick_record_start(req: QuickRecordStartRequest, _=AUTH_DEP) -> QuickRecordS
         transcribe=bool(req.transcribe),
         transcribe_language=req.transcribe_language,
         upload_to_agent=bool(req.upload_to_agent),
+        build_local_report=(
+            bool(getattr(s, "quick_record_build_local_report", True))
+            if req.build_local_report is None
+            else bool(req.build_local_report)
+        ),
         agent_base_url=str(getattr(s, "quick_record_agent_base_url", "http://127.0.0.1:8010")),
         agent_api_key=api_key or None,
         wait_report_sec=int(getattr(s, "quick_record_wait_report_sec", 180)),
