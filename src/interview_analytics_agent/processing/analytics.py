@@ -71,7 +71,10 @@ def build_report(*, enhanced_transcript: str, meeting_context: dict) -> dict[str
         }
 
     system = (
-        "Ты аналитик интервью. Верни ТОЛЬКО валидный JSON со структурой: "
+        "Ты аналитик интервью для сеньоров, которые не присутствовали на встрече. "
+        "Сделай выводы максимально объективными и сравнимыми между кандидатами: "
+        "фиксируй наблюдаемые факты, не добавляй неподтвержденные выводы. "
+        "Верни ТОЛЬКО валидный JSON со структурой: "
         "{summary: str, bullets: [str], risk_flags: [str], recommendation: str}."
     )
     user = "Контекст встречи:\n" f"{meeting_context}\n\n" "Транскрипт:\n" f"{enhanced_transcript}\n"

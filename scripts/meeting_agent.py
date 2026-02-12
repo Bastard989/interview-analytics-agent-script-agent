@@ -38,6 +38,7 @@ def _parse_common_options(parser: argparse.ArgumentParser, *, require_url: bool)
     )
     parser.add_argument("--sample-rate", type=int, default=int(os.getenv("QUICK_RECORD_SAMPLE_RATE", "44100")))
     parser.add_argument("--block-size", type=int, default=int(os.getenv("QUICK_RECORD_BLOCK_SIZE", "1024")))
+    parser.add_argument("--input-device", default=os.getenv("QUICK_RECORD_INPUT_DEVICE"))
     parser.add_argument("--no-open", action="store_true")
     parser.add_argument("--transcribe", action="store_true")
     parser.add_argument("--language", default=os.getenv("QUICK_RECORD_LANGUAGE", "ru"))
@@ -49,6 +50,21 @@ def _parse_common_options(parser: argparse.ArgumentParser, *, require_url: bool)
     parser.add_argument("--meeting-id", default=os.getenv("QUICK_RECORD_MEETING_ID"))
     parser.add_argument("--wait-report-sec", type=int, default=int(os.getenv("QUICK_RECORD_WAIT_REPORT_SEC", "180")))
     parser.add_argument("--poll-interval-sec", type=float, default=float(os.getenv("QUICK_RECORD_POLL_INTERVAL_SEC", "3")))
+    parser.add_argument(
+        "--agent-http-retries",
+        type=int,
+        default=int(os.getenv("QUICK_RECORD_AGENT_HTTP_RETRIES", "2")),
+    )
+    parser.add_argument(
+        "--agent-http-backoff-sec",
+        type=float,
+        default=float(os.getenv("QUICK_RECORD_AGENT_HTTP_BACKOFF_SEC", "0.75")),
+    )
+    parser.add_argument(
+        "--preflight-min-free-mb",
+        type=int,
+        default=int(os.getenv("QUICK_RECORD_MIN_FREE_MB", "512")),
+    )
     parser.add_argument(
         "--email-to",
         action="append",
@@ -63,6 +79,17 @@ def _runtime_file(output_dir: Path) -> Path:
 
 def _log_file(output_dir: Path) -> Path:
     return output_dir / ".quick_record_agent.log"
+
+
+def _stop_flag_file(output_dir: Path) -> Path:
+    return output_dir / ".quick_record_agent.stop"
+
+
+def _resolve_quick_script() -> Path:
+    override = (os.getenv("QUICK_RECORD_SCRIPT_PATH") or "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return QUICK_SCRIPT
 
 
 def _load_runtime(path: Path) -> dict:
@@ -100,9 +127,11 @@ def _parse_recipients(raw_values: list[str]) -> list[str]:
 
 
 def _build_quick_cmd(args: argparse.Namespace) -> list[str]:
+    quick_script = _resolve_quick_script()
+    stop_flag_path = _stop_flag_file(Path(args.output_dir))
     cmd = [
         sys.executable,
-        str(QUICK_SCRIPT),
+        str(quick_script),
     ]
     if args.url:
         cmd.extend(["--url", args.url])
@@ -114,6 +143,8 @@ def _build_quick_cmd(args: argparse.Namespace) -> list[str]:
     cmd.extend(["--overlap-sec", str(args.overlap_sec)])
     cmd.extend(["--sample-rate", str(args.sample_rate)])
     cmd.extend(["--block-size", str(args.block_size)])
+    if args.input_device:
+        cmd.extend(["--input-device", str(args.input_device)])
     cmd.extend(["--language", str(args.language)])
     if args.whisper_model_size:
         cmd.extend(["--whisper-model-size", str(args.whisper_model_size)])
@@ -135,6 +166,10 @@ def _build_quick_cmd(args: argparse.Namespace) -> list[str]:
         cmd.extend(["--wait-report-sec", str(args.wait_report_sec)])
     if args.poll_interval_sec:
         cmd.extend(["--poll-interval-sec", str(args.poll_interval_sec)])
+    cmd.extend(["--agent-http-retries", str(args.agent_http_retries)])
+    cmd.extend(["--agent-http-backoff-sec", str(args.agent_http_backoff_sec)])
+    cmd.extend(["--preflight-min-free-mb", str(args.preflight_min_free_mb)])
+    cmd.extend(["--stop-flag-path", str(stop_flag_path)])
 
     recipients = _parse_recipients(args.email_to)
     for recipient in recipients:
@@ -158,6 +193,7 @@ def cmd_start(args: argparse.Namespace) -> int:
     output_dir = Path(args.output_dir)
     runtime_path = _runtime_file(output_dir)
     log_path = _log_file(output_dir)
+    stop_flag_path = _stop_flag_file(output_dir)
 
     state = _load_runtime(runtime_path)
     pid = int(state.get("pid") or 0)
@@ -167,6 +203,7 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     cmd = _build_quick_cmd(args)
     output_dir.mkdir(parents=True, exist_ok=True)
+    stop_flag_path.unlink(missing_ok=True)
 
     with log_path.open("a", encoding="utf-8") as log_fh:
         log_fh.write(f"\n=== meeting-agent start {datetime.now().isoformat()} ===\n")
@@ -187,6 +224,7 @@ def cmd_start(args: argparse.Namespace) -> int:
             "log_path": str(log_path),
             "output_dir": str(output_dir),
             "url": args.url,
+            "stop_flag_path": str(stop_flag_path),
         },
     )
     print(f"started: pid={proc.pid}")
@@ -230,6 +268,19 @@ def cmd_stop(args: argparse.Namespace) -> int:
         print("already stopped")
         return 0
 
+    stop_flag_raw = str(state.get("stop_flag_path") or _stop_flag_file(output_dir))
+    stop_flag_path = Path(stop_flag_raw)
+    stop_flag_path.parent.mkdir(parents=True, exist_ok=True)
+    stop_flag_path.write_text("stop\n", encoding="utf-8")
+
+    deadline = time.time() + max(1, int(args.wait_sec))
+    while time.time() < deadline:
+        if not _is_pid_running(pid):
+            print("stopped")
+            stop_flag_path.unlink(missing_ok=True)
+            return 0
+        time.sleep(0.2)
+
     try:
         os.kill(pid, signal.SIGINT)
     except OSError as exc:
@@ -240,6 +291,7 @@ def cmd_stop(args: argparse.Namespace) -> int:
     while time.time() < deadline:
         if not _is_pid_running(pid):
             print("stopped")
+            stop_flag_path.unlink(missing_ok=True)
             return 0
         time.sleep(0.2)
 

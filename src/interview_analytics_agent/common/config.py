@@ -99,12 +99,20 @@ class Settings(BaseSettings):
     quick_record_overlap_sec: int = Field(default=30, alias="QUICK_RECORD_OVERLAP_SEC")
     quick_record_sample_rate: int = Field(default=44100, alias="QUICK_RECORD_SAMPLE_RATE")
     quick_record_block_size: int = Field(default=1024, alias="QUICK_RECORD_BLOCK_SIZE")
+    quick_record_input_device: str | None = Field(default=None, alias="QUICK_RECORD_INPUT_DEVICE")
+    quick_record_min_free_mb: int = Field(default=512, alias="QUICK_RECORD_MIN_FREE_MB")
     quick_record_auto_open_url: bool = Field(default=False, alias="QUICK_RECORD_AUTO_OPEN_URL")
     quick_record_agent_base_url: str = Field(
         default="http://127.0.0.1:8010", alias="QUICK_RECORD_AGENT_BASE_URL"
     )
     quick_record_agent_api_key: str | None = Field(
         default=None, alias="QUICK_RECORD_AGENT_API_KEY"
+    )
+    quick_record_agent_http_retries: int = Field(
+        default=2, alias="QUICK_RECORD_AGENT_HTTP_RETRIES"
+    )
+    quick_record_agent_http_backoff_sec: float = Field(
+        default=0.75, alias="QUICK_RECORD_AGENT_HTTP_BACKOFF_SEC"
     )
     quick_record_build_local_report: bool = Field(
         default=True, alias="QUICK_RECORD_BUILD_LOCAL_REPORT"

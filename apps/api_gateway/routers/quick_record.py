@@ -24,6 +24,7 @@ class QuickRecordStartRequest(BaseModel):
     transcribe_language: str = Field(default="ru", min_length=2, max_length=8)
     upload_to_agent: bool = False
     build_local_report: bool | None = None
+    input_device: str | None = None
     agent_api_key: str | None = None
     auto_open_url: bool | None = None
     email_to: list[str] = Field(default_factory=list)
@@ -64,6 +65,9 @@ def quick_record_start(req: QuickRecordStartRequest, _=AUTH_DEP) -> QuickRecordS
         overlap_sec=int(getattr(s, "quick_record_overlap_sec", 30)),
         sample_rate=int(getattr(s, "quick_record_sample_rate", 44100)),
         block_size=int(getattr(s, "quick_record_block_size", 1024)),
+        input_device=(
+            (req.input_device or "").strip() or str(getattr(s, "quick_record_input_device", "")).strip() or None
+        ),
         auto_open_url=(
             bool(getattr(s, "quick_record_auto_open_url", False))
             if req.auto_open_url is None
@@ -82,7 +86,10 @@ def quick_record_start(req: QuickRecordStartRequest, _=AUTH_DEP) -> QuickRecordS
         agent_api_key=api_key or None,
         wait_report_sec=int(getattr(s, "quick_record_wait_report_sec", 180)),
         poll_interval_sec=float(getattr(s, "quick_record_poll_interval_sec", 3.0)),
+        agent_http_retries=int(getattr(s, "quick_record_agent_http_retries", 2)),
+        agent_http_backoff_sec=float(getattr(s, "quick_record_agent_http_backoff_sec", 0.75)),
         email_to=req.email_to,
+        preflight_min_free_mb=int(getattr(s, "quick_record_min_free_mb", 512)),
     )
 
     if cfg.upload_to_agent and not cfg.agent_api_key:

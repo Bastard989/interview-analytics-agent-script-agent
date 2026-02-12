@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import json
+import shutil
 import subprocess
 import threading
 import time
@@ -40,6 +41,7 @@ class QuickRecordConfig:
     overlap_sec: int = 30
     sample_rate: int = 44100
     block_size: int = 1024
+    input_device: str | None = None
     auto_open_url: bool = True
     max_duration_sec: int | None = None
 
@@ -53,11 +55,15 @@ class QuickRecordConfig:
     meeting_id: str | None = None
     wait_report_sec: int = 180
     poll_interval_sec: float = 3.0
+    agent_http_retries: int = 2
+    agent_http_backoff_sec: float = 0.75
 
     email_to: list[str] | None = None
     build_local_report: bool = True
     local_report_context: dict[str, Any] | None = None
     external_stop_event: threading.Event | None = None
+    stop_flag_path: Path | None = None
+    preflight_min_free_mb: int = 512
 
 
 @dataclass
@@ -134,6 +140,8 @@ def build_start_payload(*, meeting_id: str, meeting_url: str, language: str) -> 
         "context": {
             "source": "quick_record",
             "meeting_url": meeting_url,
+            "report_audience": "senior_interviewers",
+            "report_goal": "objective_comparable_summary",
         },
     }
 
@@ -155,6 +163,46 @@ def build_chunk_payload(
     }
 
 
+RETRYABLE_HTTP_STATUS_CODES = {408, 409, 425, 429, 500, 502, 503, 504}
+
+
+def _device_name(device: Any) -> str:
+    return str(getattr(device, "name", "") or "").strip()
+
+
+def _select_audio_input(sc_module: Any, input_device: str | None):
+    microphones = list(sc_module.all_microphones())
+    if not microphones:
+        raise RuntimeError("No microphone/loopback device available")
+
+    if input_device:
+        needle = input_device.strip().lower()
+        if not needle:
+            raise RuntimeError("input_device is empty")
+
+        for mic in microphones:
+            if _device_name(mic).lower() == needle:
+                return mic
+        for mic in microphones:
+            if needle in _device_name(mic).lower():
+                return mic
+
+        available = ", ".join(sorted(filter(None, (_device_name(m) for m in microphones))))
+        raise RuntimeError(
+            f"Requested input device '{input_device}' not found. Available: {available or 'none'}"
+        )
+
+    loopback = next((m for m in microphones if getattr(m, "is_loopback", False)), None)
+    if loopback is not None:
+        return loopback
+
+    default_mic = sc_module.default_microphone()
+    if default_mic is not None:
+        return default_mic
+
+    raise RuntimeError("No microphone/loopback device available")
+
+
 class SegmentedLoopbackRecorder:
     def __init__(
         self,
@@ -164,12 +212,14 @@ class SegmentedLoopbackRecorder:
         block_size: int,
         segment_length_sec: int,
         overlap_sec: int,
+        input_device: str | None = None,
     ) -> None:
         self.base_path = base_path
         self.sample_rate = sample_rate
         self.block_size = block_size
         self.segment_length_sec = segment_length_sec
         self.overlap_sec = overlap_sec
+        self.input_device = input_device
         self.step_sec = segment_step_seconds(segment_length_sec, overlap_sec)
         self.stop_event = threading.Event()
         self.segment_paths: list[Path] = []
@@ -177,13 +227,7 @@ class SegmentedLoopbackRecorder:
         self.error: Exception | None = None
 
     def _select_loopback(self, sc_module: Any):
-        mics = list(sc_module.all_microphones())
-        loopback = next((m for m in mics if getattr(m, "is_loopback", False)), None)
-        if loopback is None:
-            loopback = sc_module.default_microphone()
-        if loopback is None:
-            raise RuntimeError("No microphone/loopback device available")
-        return loopback
+        return _select_audio_input(sc_module, self.input_device)
 
     def stop(self) -> None:
         self.stop_event.set()
@@ -236,10 +280,65 @@ class SegmentedLoopbackRecorder:
             self._active.clear()
 
 
+def _ensure_ffmpeg_available() -> None:
+    if shutil.which("ffmpeg") is None:
+        raise RuntimeError("ffmpeg not found in PATH; install ffmpeg to enable mp3 export")
+
+
+def _ensure_output_dir_writable(output_dir: Path) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    probe = output_dir / ".quick_record.write_probe"
+    try:
+        probe.write_text("ok", encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError(f"Output directory is not writable: {output_dir}") from exc
+    finally:
+        probe.unlink(missing_ok=True)
+
+
+def _ensure_free_disk_space(output_dir: Path, min_free_mb: int) -> float:
+    try:
+        usage = shutil.disk_usage(str(output_dir))
+    except OSError as exc:
+        raise RuntimeError(f"Failed to inspect free space at {output_dir}") from exc
+
+    free_mb = float(usage.free) / (1024.0 * 1024.0)
+    if free_mb < float(min_free_mb):
+        raise RuntimeError(
+            f"Insufficient free disk space at {output_dir}: {free_mb:.1f} MB < required {min_free_mb} MB"
+        )
+    return free_mb
+
+
+def _ensure_audio_input_available(input_device: str | None) -> str:
+    try:
+        import soundcard as sc
+    except ImportError as exc:
+        raise RuntimeError(
+            "quick recorder requires soundcard package (pip install -r requirements.txt)"
+        ) from exc
+
+    selected = _select_audio_input(sc, input_device)
+    return _device_name(selected) or "<unnamed-device>"
+
+
+def run_preflight_checks(cfg: QuickRecordConfig) -> dict[str, Any]:
+    _ensure_ffmpeg_available()
+    _ensure_output_dir_writable(cfg.output_dir)
+    free_mb = _ensure_free_disk_space(cfg.output_dir, max(1, int(cfg.preflight_min_free_mb)))
+    input_device_name = _ensure_audio_input_available(cfg.input_device)
+    return {
+        "output_dir": str(cfg.output_dir),
+        "free_mb": round(free_mb, 1),
+        "input_device": input_device_name,
+    }
+
+
 def merge_segments_to_wav(
     *,
     segment_paths: list[Path],
     output_wav: Path,
+    overlap_sec: int = 0,
     block_size: int = 4096,
     remove_sources: bool = True,
 ) -> None:
@@ -257,10 +356,14 @@ def merge_segments_to_wav(
     with sf.SoundFile(str(ordered[0]), mode="r") as first:
         samplerate = int(first.samplerate)
         channels = int(first.channels)
+    skip_frames = max(0, int(round(max(0, overlap_sec) * samplerate)))
 
     with sf.SoundFile(str(output_wav), mode="w", samplerate=samplerate, channels=channels) as out:
-        for seg_path in ordered:
+        for index, seg_path in enumerate(ordered):
             with sf.SoundFile(str(seg_path), mode="r") as seg:
+                if index > 0 and skip_frames > 0:
+                    skip_target = min(skip_frames, int(len(seg)))
+                    seg.seek(skip_target)
                 for block in seg.blocks(blocksize=block_size):
                     out.write(block)
             if remove_sources:
@@ -297,6 +400,55 @@ def transcribe_with_local_whisper(
     return result.text.strip()
 
 
+def _request_with_retry(
+    *,
+    method: str,
+    url: str,
+    headers: dict[str, str],
+    timeout: float,
+    retries: int,
+    backoff_sec: float,
+    json_payload: dict[str, Any] | None = None,
+) -> requests.Response:
+    max_retries = max(0, int(retries))
+    method_u = method.upper()
+    for attempt in range(max_retries + 1):
+        try:
+            response = requests.request(
+                method_u,
+                url,
+                json=json_payload,
+                headers=headers,
+                timeout=timeout,
+            )
+        except requests.RequestException as exc:
+            if attempt >= max_retries:
+                raise RuntimeError(
+                    f"{method_u} {url} failed after {max_retries + 1} attempt(s): {exc}"
+                ) from exc
+            sleep_sec = max(0.0, float(backoff_sec)) * (2**attempt)
+            time.sleep(sleep_sec)
+            continue
+
+        status_code = int(response.status_code)
+        if status_code in RETRYABLE_HTTP_STATUS_CODES and attempt < max_retries:
+            sleep_sec = max(0.0, float(backoff_sec)) * (2**attempt)
+            time.sleep(sleep_sec)
+            continue
+
+        if status_code >= 400:
+            body_preview = (response.text or "").strip().replace("\n", " ")
+            if len(body_preview) > 300:
+                body_preview = body_preview[:300] + "..."
+            raise RuntimeError(
+                f"{method_u} {url} failed with HTTP {status_code}: {body_preview or 'no body'}"
+            )
+
+        return response
+
+    raise RuntimeError(f"{method_u} {url} failed unexpectedly")
+
+
 def upload_recording_to_agent(*, recording_path: Path, cfg: QuickRecordConfig) -> AgentUploadResult:
     if not cfg.agent_api_key:
         raise ValueError("agent_api_key is required for upload")
@@ -313,13 +465,15 @@ def upload_recording_to_agent(*, recording_path: Path, cfg: QuickRecordConfig) -
         meeting_url=cfg.meeting_url,
         language=cfg.transcribe_language,
     )
-    start_resp = requests.post(
-        f"{base_url}/v1/meetings/start",
-        json=start_payload,
+    _request_with_retry(
+        method="POST",
+        url=f"{base_url}/v1/meetings/start",
+        json_payload=start_payload,
         headers=headers,
         timeout=20,
+        retries=cfg.agent_http_retries,
+        backoff_sec=cfg.agent_http_backoff_sec,
     )
-    start_resp.raise_for_status()
 
     chunk_payload = build_chunk_payload(
         audio_bytes=recording_path.read_bytes(),
@@ -328,13 +482,15 @@ def upload_recording_to_agent(*, recording_path: Path, cfg: QuickRecordConfig) -
         sample_rate=cfg.sample_rate,
         channels=2,
     )
-    chunk_resp = requests.post(
-        f"{base_url}/v1/meetings/{meeting_id}/chunks",
-        json=chunk_payload,
+    _request_with_retry(
+        method="POST",
+        url=f"{base_url}/v1/meetings/{meeting_id}/chunks",
+        json_payload=chunk_payload,
         headers=headers,
         timeout=60,
+        retries=cfg.agent_http_retries,
+        backoff_sec=cfg.agent_http_backoff_sec,
     )
-    chunk_resp.raise_for_status()
 
     deadline = time.monotonic() + max(1, int(cfg.wait_report_sec))
     last_status = "in_progress"
@@ -342,12 +498,14 @@ def upload_recording_to_agent(*, recording_path: Path, cfg: QuickRecordConfig) -
     last_transcript = ""
 
     while time.monotonic() < deadline:
-        get_resp = requests.get(
-            f"{base_url}/v1/meetings/{meeting_id}",
+        get_resp = _request_with_retry(
+            method="GET",
+            url=f"{base_url}/v1/meetings/{meeting_id}",
             headers=headers,
             timeout=20,
+            retries=cfg.agent_http_retries,
+            backoff_sec=cfg.agent_http_backoff_sec,
         )
-        get_resp.raise_for_status()
         payload = get_resp.json()
         last_status = str(payload.get("status") or "unknown")
         last_report = payload.get("report")
@@ -469,6 +627,8 @@ def build_local_report(
     context.setdefault("source", "quick_record_local")
     context.setdefault("meeting_url", cfg.meeting_url)
     context.setdefault("language", cfg.transcribe_language)
+    context.setdefault("report_audience", "senior_interviewers")
+    context.setdefault("report_goal", "objective_comparable_summary")
 
     report = build_report(
         enhanced_transcript=transcript_text,
@@ -484,21 +644,25 @@ def _wait_for_stop_or_timeout(
     recorder: SegmentedLoopbackRecorder,
     stop_event: threading.Event | None,
     max_duration_sec: int | None,
+    stop_flag_path: Path | None,
 ) -> None:
+    def should_stop() -> bool:
+        if recorder.error is not None:
+            return True
+        if stop_event is not None and stop_event.is_set():
+            return True
+        return stop_flag_path is not None and stop_flag_path.exists()
+
     if max_duration_sec and max_duration_sec > 0:
         deadline = time.monotonic() + max_duration_sec
         while time.monotonic() < deadline:
-            if recorder.error is not None:
-                break
-            if stop_event is not None and stop_event.is_set():
+            if should_stop():
                 break
             time.sleep(0.2)
         return
 
-    if stop_event is not None:
-        while not stop_event.is_set():
-            if recorder.error is not None:
-                break
+    if stop_event is not None or stop_flag_path is not None:
+        while not should_stop():
             time.sleep(0.2)
         return
 
@@ -511,8 +675,12 @@ def _wait_for_stop_or_timeout(
 def run_quick_record(cfg: QuickRecordConfig) -> QuickRecordResult:
     cfg.meeting_url = _validate_meeting_url(cfg.meeting_url)
     segment_step_seconds(cfg.segment_length_sec, cfg.overlap_sec)
+    run_preflight_checks(cfg)
 
     cfg.output_dir.mkdir(parents=True, exist_ok=True)
+    if cfg.stop_flag_path is not None:
+        cfg.stop_flag_path.parent.mkdir(parents=True, exist_ok=True)
+        cfg.stop_flag_path.unlink(missing_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_name = f"meeting_{timestamp}"
 
@@ -532,6 +700,7 @@ def run_quick_record(cfg: QuickRecordConfig) -> QuickRecordResult:
         block_size=cfg.block_size,
         segment_length_sec=cfg.segment_length_sec,
         overlap_sec=cfg.overlap_sec,
+        input_device=cfg.input_device,
     )
 
     thread = threading.Thread(target=recorder.record, daemon=True)
@@ -541,6 +710,7 @@ def run_quick_record(cfg: QuickRecordConfig) -> QuickRecordResult:
         recorder=recorder,
         stop_event=cfg.external_stop_event,
         max_duration_sec=cfg.max_duration_sec,
+        stop_flag_path=cfg.stop_flag_path,
     )
 
     recorder.stop()
@@ -550,7 +720,11 @@ def run_quick_record(cfg: QuickRecordConfig) -> QuickRecordResult:
     if not recorder.segment_paths:
         raise RuntimeError("Recording failed: no audio segments were produced")
 
-    merge_segments_to_wav(segment_paths=recorder.segment_paths, output_wav=wav_path)
+    merge_segments_to_wav(
+        segment_paths=recorder.segment_paths,
+        output_wav=wav_path,
+        overlap_sec=cfg.overlap_sec,
+    )
     convert_wav_to_mp3(wav_path=wav_path, mp3_path=mp3_path)
     wav_path.unlink(missing_ok=True)
 
@@ -611,6 +785,8 @@ def run_quick_record(cfg: QuickRecordConfig) -> QuickRecordResult:
             }
         },
     )
+    if cfg.stop_flag_path is not None:
+        cfg.stop_flag_path.unlink(missing_ok=True)
 
     return QuickRecordResult(
         mp3_path=mp3_path,

@@ -37,6 +37,11 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument("--sample-rate", type=int, default=int(os.getenv("QUICK_RECORD_SAMPLE_RATE", "44100")))
     p.add_argument("--block-size", type=int, default=int(os.getenv("QUICK_RECORD_BLOCK_SIZE", "1024")))
+    p.add_argument(
+        "--input-device",
+        default=os.getenv("QUICK_RECORD_INPUT_DEVICE"),
+        help="Input device name (exact or partial match). Defaults to loopback/default microphone.",
+    )
     p.add_argument("--no-open", action="store_true", help="Do not auto-open meeting URL")
 
     p.add_argument("--transcribe", action="store_true", help="Run local whisper transcription after recording")
@@ -54,6 +59,27 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--meeting-id", default=os.getenv("QUICK_RECORD_MEETING_ID"))
     p.add_argument("--wait-report-sec", type=int, default=int(os.getenv("QUICK_RECORD_WAIT_REPORT_SEC", "180")))
     p.add_argument("--poll-interval-sec", type=float, default=float(os.getenv("QUICK_RECORD_POLL_INTERVAL_SEC", "3")))
+    p.add_argument(
+        "--agent-http-retries",
+        type=int,
+        default=int(os.getenv("QUICK_RECORD_AGENT_HTTP_RETRIES", "2")),
+    )
+    p.add_argument(
+        "--agent-http-backoff-sec",
+        type=float,
+        default=float(os.getenv("QUICK_RECORD_AGENT_HTTP_BACKOFF_SEC", "0.75")),
+    )
+    p.add_argument(
+        "--preflight-min-free-mb",
+        type=int,
+        default=int(os.getenv("QUICK_RECORD_MIN_FREE_MB", "512")),
+        help="Minimum free disk space required before recording starts.",
+    )
+    p.add_argument(
+        "--stop-flag-path",
+        default=os.getenv("QUICK_RECORD_STOP_FLAG_PATH"),
+        help="If this file appears during recording, recorder stops gracefully.",
+    )
 
     p.add_argument(
         "--email-to",
@@ -89,6 +115,7 @@ def main() -> int:
         overlap_sec=args.overlap_sec,
         sample_rate=args.sample_rate,
         block_size=args.block_size,
+        input_device=(args.input_device or "").strip() or None,
         auto_open_url=not args.no_open,
         max_duration_sec=args.duration_sec,
         transcribe=args.transcribe,
@@ -101,7 +128,11 @@ def main() -> int:
         meeting_id=args.meeting_id,
         wait_report_sec=args.wait_report_sec,
         poll_interval_sec=args.poll_interval_sec,
+        agent_http_retries=args.agent_http_retries,
+        agent_http_backoff_sec=args.agent_http_backoff_sec,
         email_to=recipients,
+        stop_flag_path=Path(args.stop_flag_path).expanduser() if args.stop_flag_path else None,
+        preflight_min_free_mb=args.preflight_min_free_mb,
     )
 
     if cfg.upload_to_agent and not cfg.agent_api_key:
