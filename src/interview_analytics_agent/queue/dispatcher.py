@@ -11,9 +11,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from interview_analytics_agent.common.config import get_settings
 from interview_analytics_agent.common.ids import new_event_id
 from interview_analytics_agent.common.logging import get_project_logger
 from interview_analytics_agent.common.tracing import inject_trace_context
+from interview_analytics_agent.services.local_pipeline import process_chunk_inline
 
 from .streams import enqueue
 
@@ -50,6 +52,14 @@ def enqueue_stt(*, meeting_id: str, chunk_seq: int, blob_key: str) -> str:
         "timestamp": _now_iso(),
     }
     inject_trace_context(payload, meeting_id=meeting_id, source="queue.stt")
+    if (get_settings().queue_mode or "").strip().lower() == "inline":
+        process_chunk_inline(meeting_id=meeting_id, chunk_seq=chunk_seq, blob_key=blob_key)
+        log.info(
+            "enqueue_stt_inline",
+            extra={"payload": {"meeting_id": meeting_id, "chunk_seq": chunk_seq, "event_id": event_id}},
+        )
+        return event_id
+
     enqueue(Q_STT, payload)
     log.info(
         "enqueue_stt",

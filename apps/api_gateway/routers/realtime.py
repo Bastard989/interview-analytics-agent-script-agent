@@ -9,6 +9,8 @@ HTTP ingestion endpoints for post-meeting uploads.
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
@@ -23,6 +25,7 @@ from interview_analytics_agent.storage.repositories import MeetingRepository
 
 log = get_project_logger()
 router = APIRouter()
+AUTH_DEP = Depends(auth_dep)
 
 
 class ChunkIngestRequest(BaseModel):
@@ -40,6 +43,7 @@ class ChunkIngestResponse(BaseModel):
     seq: int
     idempotency_key: str
     blob_key: str
+    inline_updates: list[dict[str, Any]] = Field(default_factory=list)
 
 
 def _ingest_chunk_impl(meeting_id: str, req: ChunkIngestRequest) -> ChunkIngestResponse:
@@ -76,6 +80,7 @@ def _ingest_chunk_impl(meeting_id: str, req: ChunkIngestRequest) -> ChunkIngestR
             seq=result.seq,
             idempotency_key=result.idempotency_key,
             blob_key=result.blob_key,
+            inline_updates=list(getattr(result, "inline_updates", None) or []),
         )
 
 
@@ -97,7 +102,7 @@ def _ensure_meeting_access(ctx: AuthContext, meeting_id: str) -> None:
 def ingest_chunk(
     meeting_id: str,
     req: ChunkIngestRequest,
-    ctx: AuthContext = Depends(auth_dep),
+    ctx: AuthContext = AUTH_DEP,
 ) -> ChunkIngestResponse:
     _ensure_meeting_access(ctx, meeting_id)
     return _ingest_chunk_impl(meeting_id=meeting_id, req=req)

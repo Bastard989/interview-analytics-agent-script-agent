@@ -53,6 +53,7 @@ class QuickRecordConfig:
     poll_interval_sec: float = 3.0
 
     email_to: list[str] | None = None
+    external_stop_event: threading.Event | None = None
 
 
 @dataclass
@@ -69,6 +70,32 @@ class QuickRecordResult:
     transcript_path: Path | None
     agent_upload: AgentUploadResult | None
     email_result: DeliveryResult | None
+
+
+@dataclass
+class QuickRecordJobStatus:
+    job_id: str
+    status: str
+    created_at: str
+    started_at: str | None = None
+    finished_at: str | None = None
+    error: str | None = None
+    mp3_path: str | None = None
+    transcript_path: str | None = None
+    agent_meeting_id: str | None = None
+
+
+@dataclass
+class _QuickRecordJob:
+    job_id: str
+    config: QuickRecordConfig
+    stop_event: threading.Event
+    status: str
+    created_at: str
+    started_at: str | None = None
+    finished_at: str | None = None
+    error: str | None = None
+    result: QuickRecordResult | None = None
 
 
 def segment_step_seconds(segment_length_sec: int, overlap_sec: int) -> int:
@@ -386,6 +413,35 @@ def _validate_meeting_url(url: str) -> str:
     return normalized
 
 
+def _wait_for_stop_or_timeout(
+    *,
+    recorder: SegmentedLoopbackRecorder,
+    stop_event: threading.Event | None,
+    max_duration_sec: int | None,
+) -> None:
+    if max_duration_sec and max_duration_sec > 0:
+        deadline = time.monotonic() + max_duration_sec
+        while time.monotonic() < deadline:
+            if recorder.error is not None:
+                break
+            if stop_event is not None and stop_event.is_set():
+                break
+            time.sleep(0.2)
+        return
+
+    if stop_event is not None:
+        while not stop_event.is_set():
+            if recorder.error is not None:
+                break
+            time.sleep(0.2)
+        return
+
+    try:
+        input("Recording started. Press Enter to stop...\n")
+    except EOFError:
+        time.sleep(5)
+
+
 def run_quick_record(cfg: QuickRecordConfig) -> QuickRecordResult:
     cfg.meeting_url = _validate_meeting_url(cfg.meeting_url)
     segment_step_seconds(cfg.segment_length_sec, cfg.overlap_sec)
@@ -413,14 +469,11 @@ def run_quick_record(cfg: QuickRecordConfig) -> QuickRecordResult:
     thread = threading.Thread(target=recorder.record, daemon=True)
     thread.start()
 
-    if cfg.max_duration_sec and cfg.max_duration_sec > 0:
-        time.sleep(cfg.max_duration_sec)
-    else:
-        try:
-            input("Recording started. Press Enter to stop...\n")
-        except EOFError:
-            # non-interactive shell fallback
-            time.sleep(5)
+    _wait_for_stop_or_timeout(
+        recorder=recorder,
+        stop_event=cfg.external_stop_event,
+        max_duration_sec=cfg.max_duration_sec,
+    )
 
     recorder.stop()
     thread.join(timeout=20)
@@ -472,3 +525,109 @@ def run_quick_record(cfg: QuickRecordConfig) -> QuickRecordResult:
         agent_upload=upload_result,
         email_result=email_result,
     )
+
+
+class QuickRecordManager:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._active_job_id: str | None = None
+        self._jobs: dict[str, _QuickRecordJob] = {}
+
+    def _as_status(self, job: _QuickRecordJob) -> QuickRecordJobStatus:
+        return QuickRecordJobStatus(
+            job_id=job.job_id,
+            status=job.status,
+            created_at=job.created_at,
+            started_at=job.started_at,
+            finished_at=job.finished_at,
+            error=job.error,
+            mp3_path=str(job.result.mp3_path) if job.result else None,
+            transcript_path=(
+                str(job.result.transcript_path)
+                if job.result and job.result.transcript_path
+                else None
+            ),
+            agent_meeting_id=(
+                job.result.agent_upload.meeting_id if job.result and job.result.agent_upload else None
+            ),
+        )
+
+    def _run_job(self, job_id: str) -> None:
+        with self._lock:
+            job = self._jobs[job_id]
+            job.status = "running"
+            job.started_at = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+
+        try:
+            result = run_quick_record(job.config)
+            with self._lock:
+                job = self._jobs[job_id]
+                job.result = result
+                job.status = "completed"
+                job.finished_at = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+        except Exception as exc:
+            with self._lock:
+                job = self._jobs[job_id]
+                job.status = "failed"
+                job.error = str(exc)
+                job.finished_at = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+        finally:
+            with self._lock:
+                if self._active_job_id == job_id:
+                    self._active_job_id = None
+
+    def start(self, cfg: QuickRecordConfig) -> QuickRecordJobStatus:
+        with self._lock:
+            if self._active_job_id:
+                active = self._jobs.get(self._active_job_id)
+                if active and active.status in {"queued", "running", "stopping"}:
+                    raise RuntimeError("quick record already running")
+                self._active_job_id = None
+
+            job_id = f"qr-{int(time.time())}-{uuid.uuid4().hex[:8]}"
+            stop_event = threading.Event()
+            cfg.external_stop_event = stop_event
+            job = _QuickRecordJob(
+                job_id=job_id,
+                config=cfg,
+                stop_event=stop_event,
+                status="queued",
+                created_at=datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            )
+            self._jobs[job_id] = job
+            self._active_job_id = job_id
+
+            thread = threading.Thread(target=self._run_job, args=(job_id,), daemon=True)
+            thread.start()
+            return self._as_status(job)
+
+    def get_status(self, job_id: str | None = None) -> QuickRecordJobStatus | None:
+        with self._lock:
+            target_id = job_id or self._active_job_id
+            if not target_id:
+                return None
+            job = self._jobs.get(target_id)
+            if not job:
+                return None
+            return self._as_status(job)
+
+    def stop(self) -> QuickRecordJobStatus | None:
+        with self._lock:
+            if not self._active_job_id:
+                return None
+            job = self._jobs.get(self._active_job_id)
+            if not job:
+                self._active_job_id = None
+                return None
+            if job.status not in {"queued", "running"}:
+                return self._as_status(job)
+            job.status = "stopping"
+            job.stop_event.set()
+            return self._as_status(job)
+
+
+_MANAGER = QuickRecordManager()
+
+
+def get_quick_record_manager() -> QuickRecordManager:
+    return _MANAGER

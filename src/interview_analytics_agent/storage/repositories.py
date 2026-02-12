@@ -75,6 +75,14 @@ class MeetingRepository:
     def list_active(self) -> list[Meeting]:
         return self.session.query(Meeting).filter(Meeting.finished_at.is_(None)).all()
 
+    def list_recent(self, *, limit: int = 50) -> list[Meeting]:
+        return (
+            self.session.query(Meeting)
+            .order_by(desc(Meeting.created_at))
+            .limit(max(1, min(limit, 500)))
+            .all()
+        )
+
 
 # =============================================================================
 # TRANSCRIPT SEGMENT REPOSITORY

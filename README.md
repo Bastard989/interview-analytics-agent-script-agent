@@ -38,6 +38,25 @@ Production-ориентированный backend для транскрибац�
 Через Makefile:
 - `make quick-record URL="https://..."`
 
+Web UI для этого агента:
+- Открой `http://localhost:8010/`
+- В UI доступны: start/stop quick recording, статус сигнала API, список встреч и результаты.
+
+API для UI/интеграций:
+- `POST /v1/quick-record/start`
+- `GET /v1/quick-record/status`
+- `POST /v1/quick-record/stop`
+- `GET /v1/meetings`
+- `GET /v1/meetings/{meeting_id}/artifacts`
+- `POST /v1/meetings/{meeting_id}/artifacts/rebuild`
+- `GET /v1/meetings/{meeting_id}/artifact?kind=raw|clean|report&fmt=txt|json`
+- `GET /v1/meetings/{meeting_id}/report`
+- `GET /v1/meetings/{meeting_id}/report/text`
+- `POST /v1/meetings/{meeting_id}/report/rebuild`
+
+Локальный runtime режим без Redis workers:
+- `QUEUE_MODE=inline` включает синхронную обработку chunk -> STT -> enhancer -> report в API процессе.
+
 ## E2E Smoke
 
 - `python3 tools/e2e_local.py`

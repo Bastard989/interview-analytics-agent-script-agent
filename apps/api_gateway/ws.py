@@ -204,6 +204,7 @@ async def _websocket_endpoint_impl(ws: WebSocket, *, service_only: bool) -> None
     if ctx is None:
         return
 
+    inline_mode = (get_settings().queue_mode or "").strip().lower() == "inline"
     await ws.accept()
 
     meeting_id: str | None = None
@@ -250,10 +251,10 @@ async def _websocket_endpoint_impl(ws: WebSocket, *, service_only: bool) -> None
                 continue
 
             if not meeting_checked and tenant_enforcement_enabled() and not service_only:
-                def _check_meeting() -> tuple[bool, str | None]:
+                def _check_meeting(target_meeting_id: str = meeting_id) -> tuple[bool, str | None]:
                     with db_session() as s:
                         repo = MeetingRepository(s)
-                        m = repo.get(meeting_id)
+                        m = repo.get(target_meeting_id)
                         if not m:
                             return False, "Встреча не найдена"
                         try:
@@ -283,8 +284,9 @@ async def _websocket_endpoint_impl(ws: WebSocket, *, service_only: bool) -> None
                     return
                 meeting_checked = True
 
-            # Запускаем forward только один раз, когда получили meeting_id
-            if forward_task is None:
+            # Запускаем forward только один раз, когда получили meeting_id.
+            # В inline режиме отправляем transcript.update сразу из ingest result.
+            if forward_task is None and not inline_mode:
                 forward_task = asyncio.create_task(_forward_pubsub_to_ws(ws, meeting_id))
 
             seq = int(event.get("seq", 0))
@@ -337,6 +339,10 @@ async def _websocket_endpoint_impl(ws: WebSocket, *, service_only: bool) -> None
 
             if result.is_duplicate:
                 continue
+
+            if inline_mode:
+                for payload in list(getattr(result, "inline_updates", None) or []):
+                    await ws.send_text(json.dumps(payload, ensure_ascii=False))
 
     except WebSocketDisconnect:
         pass

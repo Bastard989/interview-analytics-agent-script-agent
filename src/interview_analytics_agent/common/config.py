@@ -84,8 +84,32 @@ class Settings(BaseSettings):
         alias="POSTGRES_DSN",
     )
     redis_url: str = Field(default="redis://redis:6379/0", alias="REDIS_URL")
+    queue_mode: str = Field(default="redis", alias="QUEUE_MODE")  # redis|inline
 
     chunks_dir: str = Field(default="./data/chunks", alias="CHUNKS_DIR")
+    records_dir: str = Field(default="./recordings", alias="RECORDS_DIR")
+    quick_record_enabled: bool = Field(default=True, alias="QUICK_RECORD_ENABLED")
+    quick_record_output_dir: str = Field(default="./recordings", alias="QUICK_RECORD_OUTPUT_DIR")
+    quick_record_default_duration_sec: int = Field(
+        default=1800, alias="QUICK_RECORD_DEFAULT_DURATION_SEC"
+    )
+    quick_record_segment_length_sec: int = Field(
+        default=120, alias="QUICK_RECORD_SEGMENT_LENGTH_SEC"
+    )
+    quick_record_overlap_sec: int = Field(default=30, alias="QUICK_RECORD_OVERLAP_SEC")
+    quick_record_sample_rate: int = Field(default=44100, alias="QUICK_RECORD_SAMPLE_RATE")
+    quick_record_block_size: int = Field(default=1024, alias="QUICK_RECORD_BLOCK_SIZE")
+    quick_record_auto_open_url: bool = Field(default=False, alias="QUICK_RECORD_AUTO_OPEN_URL")
+    quick_record_agent_base_url: str = Field(
+        default="http://127.0.0.1:8010", alias="QUICK_RECORD_AGENT_BASE_URL"
+    )
+    quick_record_agent_api_key: str | None = Field(
+        default=None, alias="QUICK_RECORD_AGENT_API_KEY"
+    )
+    quick_record_wait_report_sec: int = Field(default=180, alias="QUICK_RECORD_WAIT_REPORT_SEC")
+    quick_record_poll_interval_sec: float = Field(
+        default=3.0, alias="QUICK_RECORD_POLL_INTERVAL_SEC"
+    )
     storage_mode: str = Field(default="local_fs", alias="STORAGE_MODE")  # local_fs|shared_fs
     storage_shared_fs_dir: str | None = Field(default=None, alias="STORAGE_SHARED_FS_DIR")
     storage_require_shared_in_prod: bool = Field(
