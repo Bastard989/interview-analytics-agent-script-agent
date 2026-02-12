@@ -29,6 +29,7 @@ from interview_analytics_agent.queue.dispatcher import Q_ANALYTICS, enqueue_deli
 from interview_analytics_agent.queue.retry import requeue_with_backoff
 from interview_analytics_agent.queue.streams import ack_task, consumer_name, read_task
 from interview_analytics_agent.services.readiness_service import enforce_startup_readiness
+from interview_analytics_agent.storage import records
 from interview_analytics_agent.storage.db import db_session
 from interview_analytics_agent.storage.repositories import (
     MeetingRepository,
@@ -66,8 +67,23 @@ def run_loop() -> None:
                     segs = srepo.list_by_meeting(meeting_id)
                     raw = build_raw_transcript(segs)
                     enhanced = build_enhanced_transcript(segs)
+                    seg_payload = [
+                        {
+                            "seq": seg.seq,
+                            "speaker": seg.speaker,
+                            "start_ms": seg.start_ms,
+                            "end_ms": seg.end_ms,
+                            "raw_text": seg.raw_text,
+                            "enhanced_text": seg.enhanced_text,
+                        }
+                        for seg in segs
+                    ]
 
-                    report = build_report(enhanced_transcript=enhanced, meeting_context=ctx)
+                    report = build_report(
+                        enhanced_transcript=enhanced,
+                        meeting_context=ctx,
+                        transcript_segments=seg_payload,
+                    )
 
                     if m:
                         m.raw_transcript = raw
@@ -75,6 +91,13 @@ def run_loop() -> None:
                         m.report = report
                         m.status = PipelineStatus.processing
                         mrepo.save(m)
+
+                records.write_text(meeting_id, "raw.txt", raw)
+                records.write_text(meeting_id, "clean.txt", enhanced)
+                records.write_json(meeting_id, "report.json", report)
+                scorecard = report.get("scorecard")
+                if isinstance(scorecard, dict):
+                    records.write_json(meeting_id, "scorecard.json", scorecard)
 
                 enqueue_delivery(meeting_id=meeting_id)
             should_ack = True

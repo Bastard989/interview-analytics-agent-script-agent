@@ -65,7 +65,22 @@ def _ensure_report(meeting_id: str) -> dict[str, Any]:
         segs = srepo.list_by_meeting(meeting_id)
         raw = build_raw_transcript(segs)
         clean = build_enhanced_transcript(segs)
-        report = build_report(enhanced_transcript=clean, meeting_context=meeting.context or {})
+        seg_payload = [
+            {
+                "seq": seg.seq,
+                "speaker": seg.speaker,
+                "start_ms": seg.start_ms,
+                "end_ms": seg.end_ms,
+                "raw_text": seg.raw_text,
+                "enhanced_text": seg.enhanced_text,
+            }
+            for seg in segs
+        ]
+        report = build_report(
+            enhanced_transcript=clean,
+            meeting_context=meeting.context or {},
+            transcript_segments=seg_payload,
+        )
 
         meeting.raw_transcript = raw
         meeting.enhanced_transcript = clean
@@ -73,6 +88,9 @@ def _ensure_report(meeting_id: str) -> dict[str, Any]:
         mrepo.save(meeting)
 
     records.write_json(meeting_id, "report.json", report)
+    scorecard = report.get("scorecard")
+    if isinstance(scorecard, dict):
+        records.write_json(meeting_id, "scorecard.json", scorecard)
     records.write_text(meeting_id, "report.txt", _report_to_text(report))
     return report
 

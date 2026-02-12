@@ -39,4 +39,5 @@ class DeliveryProvider(Protocol):
         html_body: str,
         text_body: str | None = None,
         attachments: list[tuple[str, bytes, str]] | None = None,  # (filename, bytes, mime)
+        from_email: str | None = None,
     ) -> DeliveryResult: ...

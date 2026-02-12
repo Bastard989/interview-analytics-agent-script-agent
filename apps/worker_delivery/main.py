@@ -113,7 +113,12 @@ def run_loop() -> None:
                         raw_text=raw_transcript, enhanced_text=enhanced_transcript
                     )
 
-                    if settings.delivery_provider == "email" and recipients:
+                    if settings.delivery_manual_mode_only:
+                        log.warning(
+                            "delivery_manual_mode_skip_auto",
+                            extra={"payload": {"meeting_id": meeting_id}},
+                        )
+                    elif settings.delivery_provider == "email" and recipients:
                         smtp.send_report(
                             meeting_id=meeting_id,
                             recipients=recipients,

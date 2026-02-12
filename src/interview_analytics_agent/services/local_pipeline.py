@@ -21,6 +21,7 @@ from interview_analytics_agent.storage.repositories import (
     MeetingRepository,
     TranscriptSegmentRepository,
 )
+from interview_analytics_agent.stt.diarization import resolve_speaker
 from interview_analytics_agent.stt.mock import MockSTTProvider
 
 log = get_project_logger()
@@ -113,6 +114,7 @@ def process_chunk_inline(
 
     stt = _get_stt_provider()
     stt_result = stt.transcribe_chunk(audio=audio_bytes, sample_rate=16000)
+    speaker = resolve_speaker(hint=stt_result.speaker, raw_text=stt_result.text, seq=chunk_seq)
     raw_text = (stt_result.text or "").strip()
     enhanced_text, meta = enhance_text(raw_text)
     q_score = quality_score(raw_text, enhanced_text)
@@ -126,7 +128,7 @@ def process_chunk_inline(
             seg = TranscriptSegment(
                 meeting_id=meeting_id,
                 seq=chunk_seq,
-                speaker=stt_result.speaker,
+                speaker=speaker,
                 start_ms=None,
                 end_ms=None,
                 raw_text=raw_text,
@@ -138,7 +140,22 @@ def process_chunk_inline(
         segs = srepo.list_by_meeting(meeting_id)
         raw = build_raw_transcript(segs)
         enhanced = build_enhanced_transcript(segs)
-        report = build_report(enhanced_transcript=enhanced, meeting_context=meeting.context or {})
+        seg_payload = [
+            {
+                "seq": seg.seq,
+                "speaker": seg.speaker,
+                "start_ms": seg.start_ms,
+                "end_ms": seg.end_ms,
+                "raw_text": seg.raw_text,
+                "enhanced_text": seg.enhanced_text,
+            }
+            for seg in segs
+        ]
+        report = build_report(
+            enhanced_transcript=enhanced,
+            meeting_context=meeting.context or {},
+            transcript_segments=seg_payload,
+        )
 
         meeting.raw_transcript = raw
         meeting.enhanced_transcript = enhanced
@@ -149,6 +166,9 @@ def process_chunk_inline(
     records.write_text(meeting_id, "raw.txt", raw)
     records.write_text(meeting_id, "clean.txt", enhanced)
     records.write_json(meeting_id, "report.json", report)
+    scorecard = report.get("scorecard")
+    if isinstance(scorecard, dict):
+        records.write_json(meeting_id, "scorecard.json", scorecard)
     records.write_text(meeting_id, "report.txt", _report_to_text(report))
 
     if not raw_text:
@@ -160,7 +180,7 @@ def process_chunk_inline(
             "event_type": "transcript.update",
             "meeting_id": meeting_id,
             "seq": chunk_seq,
-            "speaker": stt_result.speaker,
+            "speaker": speaker,
             "raw_text": raw_text,
             "enhanced_text": enhanced_text,
             "confidence": stt_result.confidence,

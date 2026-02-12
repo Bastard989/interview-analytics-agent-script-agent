@@ -245,6 +245,12 @@ class Settings(BaseSettings):
     smtp_user: str | None = Field(default=None, alias="SMTP_USER")
     smtp_pass: str | None = Field(default=None, alias="SMTP_PASS")
     email_from: str = Field(default="hr-agent@example.com", alias="EMAIL_FROM")
+    delivery_manual_mode_only: bool = Field(default=True, alias="DELIVERY_MANUAL_MODE_ONLY")
+    delivery_sender_accounts: str = Field(default="", alias="DELIVERY_SENDER_ACCOUNTS")
+    delivery_max_recipients: int = Field(default=20, alias="DELIVERY_MAX_RECIPIENTS")
+    interview_scenarios_dir: str = Field(
+        default="./data/interview_scenarios/examples", alias="INTERVIEW_SCENARIOS_DIR"
+    )
 
     # -------------------------------------------------------------------------
     # Logging

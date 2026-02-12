@@ -24,7 +24,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from apps.api_gateway.routers.admin import router as admin_router
+from apps.api_gateway.routers.analysis import router as analysis_router
 from apps.api_gateway.routers.artifacts import router as artifacts_router
+from apps.api_gateway.routers.manual_delivery import router as manual_delivery_router
 from apps.api_gateway.routers.meetings import router as meetings_router
 from apps.api_gateway.routers.quick_record import router as quick_record_router
 from apps.api_gateway.routers.realtime import router as realtime_router
@@ -117,6 +119,8 @@ def _create_app() -> FastAPI:
     app.include_router(meetings_router, prefix="/v1")
     app.include_router(artifacts_router, prefix="/v1")
     app.include_router(reports_router, prefix="/v1")
+    app.include_router(analysis_router, prefix="/v1")
+    app.include_router(manual_delivery_router, prefix="/v1")
     app.include_router(quick_record_router, prefix="/v1")
     app.include_router(realtime_router, prefix="/v1")
     app.include_router(admin_router, prefix="/v1")

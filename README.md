@@ -3,6 +3,7 @@
 Статус: в разработке.
 
 Production-ориентированный backend для транскрибации и аналитики интервью.
+Фокус текущей версии: объективные и сравнимые сводки для сеньоров, которые не присутствовали на интервью.
 
 ## Быстрый старт (dev)
 
@@ -72,13 +73,44 @@ API для UI/интеграций:
 - `GET /v1/meetings`
 - `GET /v1/meetings/{meeting_id}/artifacts`
 - `POST /v1/meetings/{meeting_id}/artifacts/rebuild`
-- `GET /v1/meetings/{meeting_id}/artifact?kind=raw|clean|report&fmt=txt|json`
+- `GET /v1/meetings/{meeting_id}/artifact?kind=raw|clean|report|scorecard|comparison|calibration&fmt=txt|json`
 - `GET /v1/meetings/{meeting_id}/report`
 - `GET /v1/meetings/{meeting_id}/report/text`
 - `POST /v1/meetings/{meeting_id}/report/rebuild`
+- `GET /v1/meetings/{meeting_id}/scorecard`
+- `POST /v1/analysis/comparison`
+- `GET /v1/analysis/comparison?meeting_ids=m1,m2,m3`
+- `POST /v1/meetings/{meeting_id}/calibration/review`
+- `GET /v1/meetings/{meeting_id}/calibration`
+- `GET /v1/delivery/accounts`
+- `POST /v1/meetings/{meeting_id}/delivery/manual`
+- `GET /v1/interview-scenarios` (placeholder под будущие сценарии/примеры интервью)
 
 Локальный runtime режим без Redis workers:
 - `QUEUE_MODE=inline` включает синхронную обработку chunk -> STT -> enhancer -> report в API процессе.
+
+### Объективная и сравнимая аналитика
+
+`report` теперь содержит:
+- `scorecard` (единая матрица компетенций 1..5)
+- evidence-first поля по компетенциям (цитаты/seq/start/end/speaker)
+- `insufficient_evidence_competencies` для прозрачной диагностики слабых мест данных
+
+Сравнение кандидатов:
+- `POST /v1/analysis/comparison` принимает список `meeting_ids`
+- возвращает ranking + competency matrix
+- сохраняет `comparison.json` в артефакты выбранных встреч
+
+Калибровка agent vs senior:
+- `POST /v1/meetings/{meeting_id}/calibration/review`
+- `GET /v1/meetings/{meeting_id}/calibration`
+- сохраняет `calibration_reviews.json` и `calibration_report.json`
+
+Ручная отправка с выбором нескольких email и sender account:
+- авто-рассылка в worker delivery отключена по умолчанию (`DELIVERY_MANUAL_MODE_ONLY=true`)
+- для ручной отправки:
+  1) `GET /v1/delivery/accounts`
+  2) `POST /v1/meetings/{meeting_id}/delivery/manual` с `recipients[]` и `sender_account`
 
 ## E2E Smoke
 

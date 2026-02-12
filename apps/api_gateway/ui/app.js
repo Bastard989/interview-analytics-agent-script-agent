@@ -18,11 +18,22 @@ const el = {
   meetingsTable: document.getElementById("meetingsTable"),
   meetingIdInput: document.getElementById("meetingIdInput"),
   loadMeeting: document.getElementById("loadMeeting"),
+  loadScorecard: document.getElementById("loadScorecard"),
   rebuildArtifacts: document.getElementById("rebuildArtifacts"),
   openReportJson: document.getElementById("openReportJson"),
   openReportTxt: document.getElementById("openReportTxt"),
   enhancedTranscript: document.getElementById("enhancedTranscript"),
   reportJson: document.getElementById("reportJson"),
+  scorecardJson: document.getElementById("scorecardJson"),
+  comparisonMeetingIds: document.getElementById("comparisonMeetingIds"),
+  runComparison: document.getElementById("runComparison"),
+  comparisonJson: document.getElementById("comparisonJson"),
+  senderAccount: document.getElementById("senderAccount"),
+  manualRecipients: document.getElementById("manualRecipients"),
+  manualMessage: document.getElementById("manualMessage"),
+  manualSend: document.getElementById("manualSend"),
+  manualSendState: document.getElementById("manualSendState"),
+  manualSendMeta: document.getElementById("manualSendMeta"),
 };
 
 const state = {
@@ -226,8 +237,22 @@ async function loadMeeting() {
     const body = await apiFetch(`/v1/meetings/${encodeURIComponent(meetingId)}`);
     el.enhancedTranscript.value = body.enhanced_transcript || "";
     el.reportJson.value = JSON.stringify(body.report || {}, null, 2);
+    el.scorecardJson.value = JSON.stringify((body.report && body.report.scorecard) || {}, null, 2);
   } catch (err) {
     el.reportJson.value = `Ошибка загрузки встречи: ${err.message}`;
+  }
+}
+
+async function loadScorecard() {
+  const meetingId = (el.meetingIdInput.value || "").trim();
+  if (!meetingId) {
+    return;
+  }
+  try {
+    const body = await apiFetch(`/v1/meetings/${encodeURIComponent(meetingId)}/scorecard`);
+    el.scorecardJson.value = JSON.stringify(body.scorecard || {}, null, 2);
+  } catch (err) {
+    el.scorecardJson.value = `Ошибка загрузки scorecard: ${err.message}`;
   }
 }
 
@@ -277,6 +302,93 @@ async function downloadArtifact(kind, fmt) {
   URL.revokeObjectURL(href);
 }
 
+function setManualSendState(status, meta) {
+  el.manualSendState.textContent = status || "idle";
+  el.manualSendMeta.textContent = meta || "";
+}
+
+async function loadDeliveryAccounts() {
+  try {
+    const body = await apiFetch("/v1/delivery/accounts");
+    const accounts = Array.isArray(body.accounts) ? body.accounts : [];
+    el.senderAccount.innerHTML = "";
+    for (const acc of accounts) {
+      const opt = document.createElement("option");
+      opt.value = acc.account_id;
+      opt.textContent = `${acc.account_id} (${acc.from_email})`;
+      el.senderAccount.appendChild(opt);
+    }
+  } catch (err) {
+    setManualSendState("error", `Не удалось загрузить sender accounts: ${err.message}`);
+  }
+}
+
+async function runComparison() {
+  const raw = (el.comparisonMeetingIds.value || "").trim();
+  if (!raw) {
+    el.comparisonJson.value = "Укажите meeting IDs через запятую.";
+    return;
+  }
+  const meetingIds = raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (meetingIds.length < 2) {
+    el.comparisonJson.value = "Нужно минимум 2 meeting_id.";
+    return;
+  }
+  try {
+    const body = await apiFetch("/v1/analysis/comparison", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meeting_ids: meetingIds }),
+    });
+    el.comparisonJson.value = JSON.stringify(body.report || {}, null, 2);
+    await refreshMeetings();
+  } catch (err) {
+    el.comparisonJson.value = `Ошибка сравнения: ${err.message}`;
+  }
+}
+
+async function sendManualDelivery() {
+  const meetingId = (el.meetingIdInput.value || "").trim();
+  if (!meetingId) {
+    setManualSendState("error", "Сначала выберите meeting_id.");
+    return;
+  }
+  const recipients = (el.manualRecipients.value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (!recipients.length) {
+    setManualSendState("error", "Укажите хотя бы один email получателя.");
+    return;
+  }
+  const senderAccount = (el.senderAccount.value || "").trim() || null;
+  const payload = {
+    channel: "email",
+    recipients,
+    sender_account: senderAccount,
+    include_artifacts: ["report_json", "report_txt", "scorecard_json", "comparison_json", "calibration_json"],
+    custom_message: (el.manualMessage.value || "").trim() || null,
+  };
+  setManualSendState("sending", "Отправка...");
+  try {
+    const body = await apiFetch(`/v1/meetings/${encodeURIComponent(meetingId)}/delivery/manual`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    setManualSendState(
+      body.ok ? "ok" : "failed",
+      `channel=${body.channel} sender=${body.sender_account || "-"} recipients=${(body.recipients || []).join(", ")}`
+    );
+    await refreshMeetings();
+  } catch (err) {
+    setManualSendState("error", err.message);
+  }
+}
+
 el.quickStart.addEventListener("click", () => {
   startQuickRecord().catch(() => {});
 });
@@ -291,6 +403,10 @@ el.refreshMeetings.addEventListener("click", () => {
 
 el.loadMeeting.addEventListener("click", () => {
   loadMeeting().catch(() => {});
+});
+
+el.loadScorecard.addEventListener("click", () => {
+  loadScorecard().catch(() => {});
 });
 
 el.rebuildArtifacts.addEventListener("click", () => {
@@ -309,10 +425,19 @@ el.openReportTxt.addEventListener("click", () => {
   });
 });
 
+el.runComparison.addEventListener("click", () => {
+  runComparison().catch(() => {});
+});
+
+el.manualSend.addEventListener("click", () => {
+  sendManualDelivery().catch(() => {});
+});
+
 (async function bootstrap() {
   await checkApiSignal();
   await pollQuickStatus();
   await refreshMeetings();
+  await loadDeliveryAccounts();
   startQuickPolling();
   setInterval(() => {
     checkApiSignal().catch(() => {});

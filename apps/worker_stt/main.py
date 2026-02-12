@@ -37,6 +37,7 @@ from interview_analytics_agent.storage.repositories import (
     MeetingRepository,
     TranscriptSegmentRepository,
 )
+from interview_analytics_agent.stt.diarization import resolve_speaker
 from interview_analytics_agent.stt.mock import MockSTTProvider
 
 log = get_project_logger()
@@ -104,6 +105,7 @@ def run_loop() -> None:
 
                 # sample_rate из задачи может отсутствовать, для whisper мы всё равно ресемплим в 16k
                 res = stt.transcribe_chunk(audio=audio, sample_rate=16000)
+                speaker = resolve_speaker(hint=res.speaker, raw_text=res.text, seq=chunk_seq)
 
                 with db_session() as session:
                     mrepo = MeetingRepository(session)
@@ -118,7 +120,7 @@ def run_loop() -> None:
                     seg = TranscriptSegment(
                         meeting_id=meeting_id,
                         seq=chunk_seq,
-                        speaker=res.speaker,
+                        speaker=speaker,
                         start_ms=None,
                         end_ms=None,
                         raw_text=res.text or "",
@@ -134,7 +136,7 @@ def run_loop() -> None:
                         "event_type": "transcript.update",
                         "meeting_id": meeting_id,
                         "seq": chunk_seq,
-                        "speaker": res.speaker,
+                        "speaker": speaker,
                         "raw_text": res.text or "",
                         "enhanced_text": res.text or "",
                         "confidence": res.confidence,

@@ -79,7 +79,22 @@ def _rebuild_artifacts(meeting_id: str) -> dict[str, bool]:
         segs = srepo.list_by_meeting(meeting_id)
         raw = build_raw_transcript(segs)
         clean = build_enhanced_transcript(segs)
-        report = build_report(enhanced_transcript=clean, meeting_context=meeting.context or {})
+        seg_payload = [
+            {
+                "seq": seg.seq,
+                "speaker": seg.speaker,
+                "start_ms": seg.start_ms,
+                "end_ms": seg.end_ms,
+                "raw_text": seg.raw_text,
+                "enhanced_text": seg.enhanced_text,
+            }
+            for seg in segs
+        ]
+        report = build_report(
+            enhanced_transcript=clean,
+            meeting_context=meeting.context or {},
+            transcript_segments=seg_payload,
+        )
 
         meeting.raw_transcript = raw
         meeting.enhanced_transcript = clean
@@ -89,6 +104,9 @@ def _rebuild_artifacts(meeting_id: str) -> dict[str, bool]:
     records.write_text(meeting_id, "raw.txt", raw)
     records.write_text(meeting_id, "clean.txt", clean)
     records.write_json(meeting_id, "report.json", report)
+    scorecard = report.get("scorecard")
+    if isinstance(scorecard, dict):
+        records.write_json(meeting_id, "scorecard.json", scorecard)
     records.write_text(meeting_id, "report.txt", _report_to_text(report))
     return records.list_artifacts(meeting_id)
 
@@ -137,21 +155,32 @@ def get_meeting_artifacts(meeting_id: str, _=AUTH_DEP) -> MeetingArtifactsRespon
 @router.get("/meetings/{meeting_id}/artifact")
 def download_artifact(
     meeting_id: str,
-    kind: Literal["raw", "clean", "report"] = Query(default="raw"),
+    kind: Literal["raw", "clean", "report", "scorecard", "comparison", "calibration"] = Query(
+        default="raw"
+    ),
     fmt: Literal["txt", "json"] = Query(default="txt"),
     _=AUTH_DEP,
 ) -> FileResponse:
     if kind in {"raw", "clean"} and fmt != "txt":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="format_required")
-    if kind == "report" and fmt not in {"txt", "json"}:
+    if kind in {"report", "scorecard", "comparison", "calibration"} and fmt not in {"txt", "json"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="format_required")
 
     if kind == "raw":
         filename = "raw.txt"
     elif kind == "clean":
         filename = "clean.txt"
-    else:
+    elif kind == "report":
         filename = "report.json" if fmt == "json" else "report.txt"
+    elif kind == "scorecard":
+        filename = "scorecard.json"
+        fmt = "json"
+    elif kind == "comparison":
+        filename = "comparison.json"
+        fmt = "json"
+    else:
+        filename = "calibration_report.json"
+        fmt = "json"
 
     try:
         path = records.artifact_path(meeting_id, filename)

@@ -1,0 +1,45 @@
+{
+  "meeting_id": "cand-alpha",
+  "context": {
+    "candidate_name": "Candidate Alpha",
+    "position": "Senior Backend"
+  },
+  "enhanced_transcript": "Interviewer: Why did you choose queue-based architecture?\nCandidate: We used queue and idempotency to handle spikes.\nCandidate: I ran postmortem and improved latency and throughput.\nInterviewer: How did you manage tradeoff between consistency and latency?\nCandidate: We used cache and SQL transactions with fallback strategy.",
+  "segments": [
+    {
+      "seq": 1,
+      "speaker": "Interviewer",
+      "start_ms": 0,
+      "end_ms": 4000,
+      "enhanced_text": "Why did you choose queue-based architecture?"
+    },
+    {
+      "seq": 2,
+      "speaker": "Candidate",
+      "start_ms": 4000,
+      "end_ms": 10000,
+      "enhanced_text": "We used queue and idempotency to handle spikes."
+    },
+    {
+      "seq": 3,
+      "speaker": "Candidate",
+      "start_ms": 10000,
+      "end_ms": 16000,
+      "enhanced_text": "I ran postmortem and improved latency and throughput."
+    },
+    {
+      "seq": 4,
+      "speaker": "Interviewer",
+      "start_ms": 16000,
+      "end_ms": 20000,
+      "enhanced_text": "How did you manage tradeoff between consistency and latency?"
+    },
+    {
+      "seq": 5,
+      "speaker": "Candidate",
+      "start_ms": 20000,
+      "end_ms": 26000,
+      "enhanced_text": "We used cache and SQL transactions with fallback strategy."
+    }
+  ]
+}

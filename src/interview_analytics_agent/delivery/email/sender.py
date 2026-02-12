@@ -37,6 +37,7 @@ class SMTPEmailProvider(DeliveryProvider):
         html_body: str,
         text_body: str | None = None,
         attachments: list[tuple[str, bytes, str]] | None = None,
+        from_email: str | None = None,
     ) -> DeliveryResult:
         if not recipients:
             return fail_result("smtp", "recipients_empty")
@@ -45,7 +46,7 @@ class SMTPEmailProvider(DeliveryProvider):
             return fail_result("smtp", "SMTP_HOST_not_set")
 
         msg = EmailMessage()
-        msg["From"] = self.s.email_from
+        msg["From"] = (from_email or self.s.email_from or "").strip() or self.s.email_from
         msg["To"] = ", ".join(recipients)
         msg["Subject"] = subject
 

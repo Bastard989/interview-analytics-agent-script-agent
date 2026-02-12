@@ -1,0 +1,14 @@
+{
+  "scenario_id": "backend_senior_v1",
+  "title": "Senior Backend Interview Template",
+  "role": "backend",
+  "level": "senior",
+  "competencies": [
+    {
+      "competency_id": "problem_solving",
+      "description": "How candidate frames and solves ambiguous technical problems.",
+      "sample_questions": []
+    }
+  ],
+  "notes": "Placeholder only: this file is not yet consumed in runtime scoring."
+}

@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from interview_analytics_agent.common.config import get_settings
+from interview_analytics_agent.processing.scorecard import build_interview_scorecard
 
 
 def _build_orchestrator():
@@ -35,7 +36,33 @@ def _build_orchestrator():
     return LLMOrchestrator(OpenAICompatProvider())
 
 
-def build_report(*, enhanced_transcript: str, meeting_context: dict) -> dict[str, Any]:
+def _with_scorecard(
+    *,
+    base_report: dict[str, Any],
+    enhanced_transcript: str,
+    meeting_context: dict[str, Any],
+    transcript_segments: list[dict[str, Any]] | None,
+) -> dict[str, Any]:
+    scorecard = build_interview_scorecard(
+        enhanced_transcript=enhanced_transcript,
+        meeting_context=meeting_context,
+        report=base_report,
+        transcript_segments=transcript_segments,
+    )
+    out = dict(base_report)
+    out["scorecard"] = scorecard
+    out["objective_mode"] = True
+    out["report_goal"] = "objective_comparable_summary"
+    out["report_audience"] = "senior_interviewers"
+    return out
+
+
+def build_report(
+    *,
+    enhanced_transcript: str,
+    meeting_context: dict,
+    transcript_segments: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """
     Сборка отчёта по интервью.
 
@@ -50,7 +77,7 @@ def build_report(*, enhanced_transcript: str, meeting_context: dict) -> dict[str
 
     # Fallback: LLM выключен -> простой отчёт, но пайплайн живой
     if not s.llm_enabled:
-        return {
+        fallback = {
             "summary": "LLM disabled; basic report",
             "bullets": [
                 "Pipeline OK",
@@ -59,16 +86,28 @@ def build_report(*, enhanced_transcript: str, meeting_context: dict) -> dict[str
             "risk_flags": [],
             "recommendation": "",
         }
+        return _with_scorecard(
+            base_report=fallback,
+            enhanced_transcript=enhanced_transcript,
+            meeting_context=meeting_context,
+            transcript_segments=transcript_segments,
+        )
 
     orch = _build_orchestrator()
     if orch is None:
         # на всякий случай: чтобы не падать даже при странной конфигурации
-        return {
+        fallback = {
             "summary": "LLM unavailable; basic report",
             "bullets": ["Pipeline OK", "LLM unavailable"],
             "risk_flags": [],
             "recommendation": "",
         }
+        return _with_scorecard(
+            base_report=fallback,
+            enhanced_transcript=enhanced_transcript,
+            meeting_context=meeting_context,
+            transcript_segments=transcript_segments,
+        )
 
     system = (
         "Ты аналитик интервью для сеньоров, которые не присутствовали на встрече. "
@@ -81,9 +120,15 @@ def build_report(*, enhanced_transcript: str, meeting_context: dict) -> dict[str
 
     data = orch.complete_json(system=system, user=user)
 
-    return {
+    report = {
         "summary": data.get("summary", ""),
         "bullets": data.get("bullets", []) or [],
         "risk_flags": data.get("risk_flags", []) or [],
         "recommendation": data.get("recommendation", ""),
     }
+    return _with_scorecard(
+        base_report=report,
+        enhanced_transcript=enhanced_transcript,
+        meeting_context=meeting_context,
+        transcript_segments=transcript_segments,
+    )
