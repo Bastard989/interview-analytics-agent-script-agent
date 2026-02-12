@@ -105,7 +105,13 @@ def run_loop() -> None:
 
                 # sample_rate из задачи может отсутствовать, для whisper мы всё равно ресемплим в 16k
                 res = stt.transcribe_chunk(audio=audio, sample_rate=16000)
-                speaker = resolve_speaker(hint=res.speaker, raw_text=res.text, seq=chunk_seq)
+                speaker = resolve_speaker(
+                    hint=res.speaker,
+                    raw_text=res.text,
+                    seq=chunk_seq,
+                    meeting_id=meeting_id,
+                    audio_bytes=audio,
+                )
 
                 with db_session() as session:
                     mrepo = MeetingRepository(session)

@@ -13,7 +13,7 @@ from interview_analytics_agent.processing.aggregation import (
 from interview_analytics_agent.processing.analytics import build_report
 from interview_analytics_agent.processing.enhancer import enhance_text
 from interview_analytics_agent.processing.quality import quality_score
-from interview_analytics_agent.storage import records
+from interview_analytics_agent.services.report_artifacts import write_report_artifacts
 from interview_analytics_agent.storage.blob import get_bytes
 from interview_analytics_agent.storage.db import db_session
 from interview_analytics_agent.storage.models import TranscriptSegment
@@ -28,25 +28,6 @@ log = get_project_logger()
 _stt_provider: Any | None = None
 _stt_warmup_started = False
 _stt_warmup_lock = threading.Lock()
-
-
-def _report_to_text(report: dict[str, Any]) -> str:
-    bullets = report.get("bullets") or []
-    risks = report.get("risk_flags") or []
-    lines = [
-        f"Summary: {report.get('summary', '')}",
-        "",
-        "Bullets:",
-    ]
-    for item in bullets:
-        lines.append(f"- {item}")
-    lines.append("")
-    lines.append("Risk Flags:")
-    for item in risks:
-        lines.append(f"- {item}")
-    lines.append("")
-    lines.append(f"Recommendation: {report.get('recommendation', '')}")
-    return "\n".join(lines).strip() + "\n"
 
 
 def _build_stt_provider():
@@ -114,7 +95,13 @@ def process_chunk_inline(
 
     stt = _get_stt_provider()
     stt_result = stt.transcribe_chunk(audio=audio_bytes, sample_rate=16000)
-    speaker = resolve_speaker(hint=stt_result.speaker, raw_text=stt_result.text, seq=chunk_seq)
+    speaker = resolve_speaker(
+        hint=stt_result.speaker,
+        raw_text=stt_result.text,
+        seq=chunk_seq,
+        meeting_id=meeting_id,
+        audio_bytes=audio_bytes,
+    )
     raw_text = (stt_result.text or "").strip()
     enhanced_text, meta = enhance_text(raw_text)
     q_score = quality_score(raw_text, enhanced_text)
@@ -163,13 +150,12 @@ def process_chunk_inline(
         meeting.status = PipelineStatus.done
         mrepo.save(meeting)
 
-    records.write_text(meeting_id, "raw.txt", raw)
-    records.write_text(meeting_id, "clean.txt", enhanced)
-    records.write_json(meeting_id, "report.json", report)
-    scorecard = report.get("scorecard")
-    if isinstance(scorecard, dict):
-        records.write_json(meeting_id, "scorecard.json", scorecard)
-    records.write_text(meeting_id, "report.txt", _report_to_text(report))
+    write_report_artifacts(
+        meeting_id=meeting_id,
+        raw_text=raw,
+        clean_text=enhanced,
+        report=report,
+    )
 
     if not raw_text:
         return []

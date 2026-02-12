@@ -17,7 +17,10 @@ def test_scorecard_endpoint(monkeypatch) -> None:
     monkeypatch.setattr("apps.api_gateway.routers.analysis._meeting_exists", lambda _m: True)
     monkeypatch.setattr(
         "apps.api_gateway.routers.analysis._ensure_report",
-        lambda _m: {"scorecard": {"overall_score": 3.7, "competencies": []}},
+        lambda _m: {
+            "scorecard": {"overall_score": 3.7, "competencies": []},
+            "decision": {"decision": "hold"},
+        },
     )
     monkeypatch.setattr("apps.api_gateway.routers.analysis.records.write_json", lambda *_a, **_k: None)
 
@@ -31,6 +34,10 @@ def test_scorecard_endpoint(monkeypatch) -> None:
         resp = client.get("/v1/meetings/m-1/scorecard")
         assert resp.status_code == 200
         assert resp.json()["scorecard"]["overall_score"] == 3.7
+
+        decision_resp = client.get("/v1/meetings/m-1/decision")
+        assert decision_resp.status_code == 200
+        assert decision_resp.json()["decision"]["decision"] == "hold"
     finally:
         settings.auth_mode = snapshot_auth
         settings.security_audit_db_enabled = snapshot_audit
@@ -75,6 +82,10 @@ def test_calibration_review_endpoint(monkeypatch) -> None:
         },
     )
     monkeypatch.setattr("apps.api_gateway.routers.analysis.records.write_json", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        "apps.api_gateway.routers.analysis.maybe_update_weights_from_calibration",
+        lambda **_k: None,
+    )
     monkeypatch.setattr("apps.api_gateway.routers.analysis._load_reviews", lambda _m: [])
     monkeypatch.setattr("apps.api_gateway.routers.analysis._save_reviews", lambda _m, _r: None)
 
@@ -94,7 +105,33 @@ def test_calibration_review_endpoint(monkeypatch) -> None:
             },
         )
         assert resp.status_code == 200
-        assert resp.json()["calibration"]["review_count"] == 0
+        assert resp.json()["calibration"]["review_count"] == 1
+    finally:
+        settings.auth_mode = snapshot_auth
+        settings.security_audit_db_enabled = snapshot_audit
+
+
+def test_senior_brief_endpoint(monkeypatch) -> None:
+    monkeypatch.setattr("apps.api_gateway.routers.analysis._meeting_exists", lambda _m: True)
+    monkeypatch.setattr(
+        "apps.api_gateway.routers.analysis._rebuild_brief",
+        lambda _m: {"brief_txt_path": "/tmp/x.txt", "brief_md_path": "/tmp/x.md"},
+    )
+    monkeypatch.setattr(
+        "apps.api_gateway.routers.analysis.records.read_text",
+        lambda *_a, **_k: "Senior brief text",
+    )
+
+    settings = get_settings()
+    snapshot_auth = settings.auth_mode
+    snapshot_audit = settings.security_audit_db_enabled
+    try:
+        settings.auth_mode = "none"
+        settings.security_audit_db_enabled = False
+        client = _client()
+        resp = client.get("/v1/meetings/m-1/senior-brief")
+        assert resp.status_code == 200
+        assert "Senior brief text" in resp.json()["text"]
     finally:
         settings.auth_mode = snapshot_auth
         settings.security_audit_db_enabled = snapshot_audit

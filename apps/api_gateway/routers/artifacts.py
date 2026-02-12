@@ -13,6 +13,7 @@ from interview_analytics_agent.processing.aggregation import (
     build_raw_transcript,
 )
 from interview_analytics_agent.processing.analytics import build_report
+from interview_analytics_agent.services.report_artifacts import write_report_artifacts
 from interview_analytics_agent.storage import records
 from interview_analytics_agent.storage.db import db_session
 from interview_analytics_agent.storage.repositories import (
@@ -39,25 +40,6 @@ class MeetingListResponse(BaseModel):
 class MeetingArtifactsResponse(BaseModel):
     meeting_id: str
     artifacts: dict[str, bool]
-
-
-def _report_to_text(report: dict) -> str:
-    bullets = report.get("bullets") or []
-    risks = report.get("risk_flags") or []
-    lines = [
-        f"Summary: {report.get('summary', '')}",
-        "",
-        "Bullets:",
-    ]
-    for item in bullets:
-        lines.append(f"- {item}")
-    lines.append("")
-    lines.append("Risk Flags:")
-    for item in risks:
-        lines.append(f"- {item}")
-    lines.append("")
-    lines.append(f"Recommendation: {report.get('recommendation', '')}")
-    return "\n".join(lines).strip() + "\n"
 
 
 def _rebuild_artifacts(meeting_id: str) -> dict[str, bool]:
@@ -101,13 +83,12 @@ def _rebuild_artifacts(meeting_id: str) -> dict[str, bool]:
         meeting.report = report
         mrepo.save(meeting)
 
-    records.write_text(meeting_id, "raw.txt", raw)
-    records.write_text(meeting_id, "clean.txt", clean)
-    records.write_json(meeting_id, "report.json", report)
-    scorecard = report.get("scorecard")
-    if isinstance(scorecard, dict):
-        records.write_json(meeting_id, "scorecard.json", scorecard)
-    records.write_text(meeting_id, "report.txt", _report_to_text(report))
+    write_report_artifacts(
+        meeting_id=meeting_id,
+        raw_text=raw,
+        clean_text=clean,
+        report=report,
+    )
     return records.list_artifacts(meeting_id)
 
 
@@ -155,15 +136,27 @@ def get_meeting_artifacts(meeting_id: str, _=AUTH_DEP) -> MeetingArtifactsRespon
 @router.get("/meetings/{meeting_id}/artifact")
 def download_artifact(
     meeting_id: str,
-    kind: Literal["raw", "clean", "report", "scorecard", "comparison", "calibration"] = Query(
-        default="raw"
-    ),
-    fmt: Literal["txt", "json"] = Query(default="txt"),
+    kind: Literal[
+        "raw",
+        "clean",
+        "report",
+        "scorecard",
+        "comparison",
+        "calibration",
+        "decision",
+        "brief",
+    ] = Query(default="raw"),
+    fmt: Literal["txt", "json", "md", "html", "pdf"] = Query(default="txt"),
     _=AUTH_DEP,
 ) -> FileResponse:
     if kind in {"raw", "clean"} and fmt != "txt":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="format_required")
-    if kind in {"report", "scorecard", "comparison", "calibration"} and fmt not in {"txt", "json"}:
+    if kind in {"report", "scorecard", "comparison", "calibration", "decision"} and fmt not in {
+        "txt",
+        "json",
+    }:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="format_required")
+    if kind == "brief" and fmt not in {"txt", "md", "html", "pdf"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="format_required")
 
     if kind == "raw":
@@ -178,6 +171,18 @@ def download_artifact(
     elif kind == "comparison":
         filename = "comparison.json"
         fmt = "json"
+    elif kind == "decision":
+        filename = "decision.json"
+        fmt = "json"
+    elif kind == "brief":
+        if fmt == "md":
+            filename = "senior_brief.md"
+        elif fmt == "html":
+            filename = "senior_brief.html"
+        elif fmt == "pdf":
+            filename = "senior_brief.pdf"
+        else:
+            filename = "senior_brief.txt"
     else:
         filename = "calibration_report.json"
         fmt = "json"
@@ -198,4 +203,8 @@ def download_artifact(
     media_type = "text/plain"
     if path.suffix == ".json":
         media_type = "application/json"
+    elif path.suffix == ".html":
+        media_type = "text/html"
+    elif path.suffix == ".pdf":
+        media_type = "application/pdf"
     return FileResponse(path, media_type=media_type, filename=path.name)

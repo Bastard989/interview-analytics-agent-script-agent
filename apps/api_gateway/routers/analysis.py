@@ -13,6 +13,11 @@ from interview_analytics_agent.common.config import get_settings
 from interview_analytics_agent.common.time import utc_now_iso
 from interview_analytics_agent.processing.calibration import build_calibration_report
 from interview_analytics_agent.processing.comparison import build_comparison_report
+from interview_analytics_agent.processing.rubric_tuning import (
+    load_weight_overrides,
+    maybe_update_weights_from_calibration,
+)
+from interview_analytics_agent.services.report_artifacts import write_report_artifacts
 from interview_analytics_agent.storage import records
 from interview_analytics_agent.storage.db import db_session
 from interview_analytics_agent.storage.repositories import MeetingRepository
@@ -51,6 +56,17 @@ class InterviewScenariosResponse(BaseModel):
     scenarios_dir: str
     available_examples: list[str]
     note: str
+
+
+class DecisionResponse(BaseModel):
+    meeting_id: str
+    decision: dict[str, Any]
+
+
+class SeniorBriefResponse(BaseModel):
+    meeting_id: str
+    text: str
+    artifacts: dict[str, str | None]
 
 
 def _meeting_exists(meeting_id: str) -> bool:
@@ -105,12 +121,42 @@ def _save_reviews(meeting_id: str, reviews: list[dict[str, Any]]) -> None:
     )
 
 
+def _rebuild_brief(meeting_id: str) -> dict[str, str | None]:
+    report = _ensure_report(meeting_id)
+    with db_session() as session:
+        repo = MeetingRepository(session)
+        m = repo.get(meeting_id)
+        if not m:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not_found")
+        return write_report_artifacts(
+            meeting_id=meeting_id,
+            raw_text=m.raw_transcript or "",
+            clean_text=m.enhanced_transcript or "",
+            report=report if isinstance(report, dict) else {},
+        )
+
+
 @router.get("/meetings/{meeting_id}/scorecard", response_model=ScorecardResponse)
 def get_scorecard(meeting_id: str, _=AUTH_DEP) -> ScorecardResponse:
     if not _meeting_exists(meeting_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not_found")
     scorecard = _scorecard_for_meeting(meeting_id)
     return ScorecardResponse(meeting_id=meeting_id, scorecard=scorecard)
+
+
+@router.get("/meetings/{meeting_id}/decision", response_model=DecisionResponse)
+def get_decision(meeting_id: str, _=AUTH_DEP) -> DecisionResponse:
+    if not _meeting_exists(meeting_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not_found")
+    report = _ensure_report(meeting_id)
+    decision = report.get("decision") if isinstance(report, dict) else None
+    if not isinstance(decision, dict):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="decision_not_available",
+        )
+    records.write_json(meeting_id, "decision.json", decision)
+    return DecisionResponse(meeting_id=meeting_id, decision=decision)
 
 
 @router.post("/analysis/comparison", response_model=ComparisonResponse)
@@ -154,6 +200,9 @@ def get_calibration(meeting_id: str, _=AUTH_DEP) -> CalibrationResponse:
     scorecard = _scorecard_for_meeting(meeting_id)
     reviews = _load_reviews(meeting_id)
     calibration = build_calibration_report(scorecard=scorecard, senior_reviews=reviews)
+    weights = load_weight_overrides()
+    if weights:
+        calibration["rubric_weights"] = weights
     records.write_json(meeting_id, "calibration_report.json", calibration)
     return CalibrationResponse(meeting_id=meeting_id, calibration=calibration)
 
@@ -178,7 +227,37 @@ def submit_calibration_review(
         }
     )
     _save_reviews(meeting_id, reviews)
-    return get_calibration(meeting_id)
+    scorecard = _scorecard_for_meeting(meeting_id)
+    updated = maybe_update_weights_from_calibration(scorecard=scorecard, reviews=reviews)
+    calibration = build_calibration_report(scorecard=scorecard, senior_reviews=reviews)
+    if updated:
+        calibration["rubric_weights_updated"] = True
+        calibration["rubric_weights"] = updated
+    else:
+        weights = load_weight_overrides()
+        if weights:
+            calibration["rubric_weights"] = weights
+    records.write_json(meeting_id, "calibration_report.json", calibration)
+    return CalibrationResponse(meeting_id=meeting_id, calibration=calibration)
+
+
+@router.get("/analysis/rubric-weights")
+def get_rubric_weights(_=AUTH_DEP) -> dict[str, Any]:
+    return load_weight_overrides()
+
+
+@router.get("/meetings/{meeting_id}/senior-brief", response_model=SeniorBriefResponse)
+def get_senior_brief(meeting_id: str, _=AUTH_DEP) -> SeniorBriefResponse:
+    if not _meeting_exists(meeting_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not_found")
+    artifacts = _rebuild_brief(meeting_id)
+    text = records.read_text(meeting_id, "senior_brief.txt")
+    return SeniorBriefResponse(meeting_id=meeting_id, text=text, artifacts=artifacts)
+
+
+@router.post("/meetings/{meeting_id}/senior-brief/rebuild", response_model=SeniorBriefResponse)
+def rebuild_senior_brief(meeting_id: str, _=AUTH_DEP) -> SeniorBriefResponse:
+    return get_senior_brief(meeting_id)
 
 
 @router.get("/interview-scenarios", response_model=InterviewScenariosResponse)

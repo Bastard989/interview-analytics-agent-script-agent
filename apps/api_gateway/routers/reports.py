@@ -11,6 +11,10 @@ from interview_analytics_agent.processing.aggregation import (
     build_raw_transcript,
 )
 from interview_analytics_agent.processing.analytics import build_report
+from interview_analytics_agent.services.report_artifacts import (
+    report_to_text,
+    write_report_artifacts,
+)
 from interview_analytics_agent.storage import records
 from interview_analytics_agent.storage.db import db_session
 from interview_analytics_agent.storage.repositories import (
@@ -30,25 +34,6 @@ class ReportResponse(BaseModel):
 class ReportTextResponse(BaseModel):
     meeting_id: str
     text: str
-
-
-def _report_to_text(report: dict[str, Any]) -> str:
-    bullets = report.get("bullets") or []
-    risks = report.get("risk_flags") or []
-    lines = [
-        f"Summary: {report.get('summary', '')}",
-        "",
-        "Bullets:",
-    ]
-    for item in bullets:
-        lines.append(f"- {item}")
-    lines.append("")
-    lines.append("Risk Flags:")
-    for item in risks:
-        lines.append(f"- {item}")
-    lines.append("")
-    lines.append(f"Recommendation: {report.get('recommendation', '')}")
-    return "\n".join(lines).strip() + "\n"
 
 
 def _ensure_report(meeting_id: str) -> dict[str, Any]:
@@ -87,11 +72,12 @@ def _ensure_report(meeting_id: str) -> dict[str, Any]:
         meeting.report = report
         mrepo.save(meeting)
 
-    records.write_json(meeting_id, "report.json", report)
-    scorecard = report.get("scorecard")
-    if isinstance(scorecard, dict):
-        records.write_json(meeting_id, "scorecard.json", scorecard)
-    records.write_text(meeting_id, "report.txt", _report_to_text(report))
+    write_report_artifacts(
+        meeting_id=meeting_id,
+        raw_text=raw,
+        clean_text=clean,
+        report=report,
+    )
     return report
 
 
@@ -104,7 +90,7 @@ def get_report(meeting_id: str, _=AUTH_DEP) -> ReportResponse:
 @router.get("/meetings/{meeting_id}/report/text", response_model=ReportTextResponse)
 def get_report_text(meeting_id: str, _=AUTH_DEP) -> ReportTextResponse:
     report = _ensure_report(meeting_id)
-    text = _report_to_text(report)
+    text = report_to_text(report)
     records.write_text(meeting_id, "report.txt", text)
     return ReportTextResponse(meeting_id=meeting_id, text=text)
 

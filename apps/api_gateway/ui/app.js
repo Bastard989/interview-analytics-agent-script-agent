@@ -19,12 +19,17 @@ const el = {
   meetingIdInput: document.getElementById("meetingIdInput"),
   loadMeeting: document.getElementById("loadMeeting"),
   loadScorecard: document.getElementById("loadScorecard"),
+  loadDecision: document.getElementById("loadDecision"),
   rebuildArtifacts: document.getElementById("rebuildArtifacts"),
   openReportJson: document.getElementById("openReportJson"),
   openReportTxt: document.getElementById("openReportTxt"),
+  openBriefTxt: document.getElementById("openBriefTxt"),
+  openBriefHtml: document.getElementById("openBriefHtml"),
   enhancedTranscript: document.getElementById("enhancedTranscript"),
   reportJson: document.getElementById("reportJson"),
   scorecardJson: document.getElementById("scorecardJson"),
+  decisionJson: document.getElementById("decisionJson"),
+  seniorBriefTxt: document.getElementById("seniorBriefTxt"),
   comparisonMeetingIds: document.getElementById("comparisonMeetingIds"),
   runComparison: document.getElementById("runComparison"),
   comparisonJson: document.getElementById("comparisonJson"),
@@ -238,6 +243,7 @@ async function loadMeeting() {
     el.enhancedTranscript.value = body.enhanced_transcript || "";
     el.reportJson.value = JSON.stringify(body.report || {}, null, 2);
     el.scorecardJson.value = JSON.stringify((body.report && body.report.scorecard) || {}, null, 2);
+    el.decisionJson.value = JSON.stringify((body.report && body.report.decision) || {}, null, 2);
   } catch (err) {
     el.reportJson.value = `Ошибка загрузки встречи: ${err.message}`;
   }
@@ -272,6 +278,32 @@ async function rebuildArtifacts() {
   }
 }
 
+async function loadDecision() {
+  const meetingId = (el.meetingIdInput.value || "").trim();
+  if (!meetingId) {
+    return;
+  }
+  try {
+    const body = await apiFetch(`/v1/meetings/${encodeURIComponent(meetingId)}/decision`);
+    el.decisionJson.value = JSON.stringify(body.decision || {}, null, 2);
+  } catch (err) {
+    el.decisionJson.value = `Ошибка загрузки decision: ${err.message}`;
+  }
+}
+
+async function loadSeniorBrief() {
+  const meetingId = (el.meetingIdInput.value || "").trim();
+  if (!meetingId) {
+    return;
+  }
+  try {
+    const body = await apiFetch(`/v1/meetings/${encodeURIComponent(meetingId)}/senior-brief`);
+    el.seniorBriefTxt.value = body.text || "";
+  } catch (err) {
+    el.seniorBriefTxt.value = `Ошибка загрузки brief: ${err.message}`;
+  }
+}
+
 async function downloadArtifact(kind, fmt) {
   const meetingId = (el.meetingIdInput.value || "").trim();
   if (!meetingId) {
@@ -284,11 +316,29 @@ async function downloadArtifact(kind, fmt) {
     throw new Error(`${res.status} ${text}`);
   }
   const blob = await res.blob();
-  const filename = kind === "report" && fmt === "json" ? "report.json" : "report.txt";
+  const filename = `${kind}.${fmt}`;
 
-  if (fmt === "txt") {
+  if (fmt === "txt" || fmt === "md") {
     const text = await blob.text();
-    el.reportJson.value = text;
+    if (kind === "brief") {
+      el.seniorBriefTxt.value = text;
+    } else {
+      el.reportJson.value = text;
+    }
+    return;
+  }
+
+  if (fmt === "json") {
+    const text = await blob.text();
+    if (kind === "decision") {
+      el.decisionJson.value = text;
+    } else if (kind === "scorecard") {
+      el.scorecardJson.value = text;
+    } else if (kind === "comparison") {
+      el.comparisonJson.value = text;
+    } else {
+      el.reportJson.value = text;
+    }
     return;
   }
 
@@ -369,7 +419,15 @@ async function sendManualDelivery() {
     channel: "email",
     recipients,
     sender_account: senderAccount,
-    include_artifacts: ["report_json", "report_txt", "scorecard_json", "comparison_json", "calibration_json"],
+    include_artifacts: [
+      "report_json",
+      "report_txt",
+      "scorecard_json",
+      "decision_json",
+      "comparison_json",
+      "calibration_json",
+      "senior_brief_txt",
+    ],
     custom_message: (el.manualMessage.value || "").trim() || null,
   };
   setManualSendState("sending", "Отправка...");
@@ -409,6 +467,10 @@ el.loadScorecard.addEventListener("click", () => {
   loadScorecard().catch(() => {});
 });
 
+el.loadDecision.addEventListener("click", () => {
+  loadDecision().catch(() => {});
+});
+
 el.rebuildArtifacts.addEventListener("click", () => {
   rebuildArtifacts().catch(() => {});
 });
@@ -422,6 +484,16 @@ el.openReportJson.addEventListener("click", () => {
 el.openReportTxt.addEventListener("click", () => {
   downloadArtifact("report", "txt").catch((err) => {
     el.reportJson.value = `Ошибка загрузки report.txt: ${err.message}`;
+  });
+});
+
+el.openBriefTxt.addEventListener("click", () => {
+  loadSeniorBrief().catch(() => {});
+});
+
+el.openBriefHtml.addEventListener("click", () => {
+  downloadArtifact("brief", "html").catch((err) => {
+    el.seniorBriefTxt.value = `Ошибка загрузки senior brief html: ${err.message}`;
   });
 });
 

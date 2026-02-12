@@ -251,6 +251,28 @@ class Settings(BaseSettings):
     interview_scenarios_dir: str = Field(
         default="./data/interview_scenarios/examples", alias="INTERVIEW_SCENARIOS_DIR"
     )
+    scorecard_weight_overrides_path: str = Field(
+        default="./data/scorecard/weight_overrides.json",
+        alias="SCORECARD_WEIGHT_OVERRIDES_PATH",
+    )
+    scorecard_auto_tuning_enabled: bool = Field(
+        default=True, alias="SCORECARD_AUTO_TUNING_ENABLED"
+    )
+    scorecard_tuning_learning_rate: float = Field(
+        default=0.2, alias="SCORECARD_TUNING_LEARNING_RATE"
+    )
+    scorecard_tuning_min_reviews: int = Field(
+        default=3, alias="SCORECARD_TUNING_MIN_REVIEWS"
+    )
+    decision_hire_score_min: float = Field(default=4.0, alias="DECISION_HIRE_SCORE_MIN")
+    decision_hold_score_min: float = Field(default=3.2, alias="DECISION_HOLD_SCORE_MIN")
+    decision_nohire_score_max: float = Field(default=2.8, alias="DECISION_NOHIRE_SCORE_MAX")
+    decision_min_confidence: float = Field(default=0.45, alias="DECISION_MIN_CONFIDENCE")
+    decision_max_insufficient_for_hire: int = Field(
+        default=1, alias="DECISION_MAX_INSUFFICIENT_FOR_HIRE"
+    )
+    decision_max_risk_for_hire: int = Field(default=1, alias="DECISION_MAX_RISK_FOR_HIRE")
+    decision_nohire_risk_min: int = Field(default=3, alias="DECISION_NOHIRE_RISK_MIN")
 
     # -------------------------------------------------------------------------
     # Logging

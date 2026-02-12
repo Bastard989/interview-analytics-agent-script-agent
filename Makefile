@@ -9,7 +9,7 @@ PYTHON ?= python3
 	compose-up compose-down \
 	fmt lint fix test storage-smoke quick-record \
 	cycle cycle-autofix \
-	openapi-gen openapi-check release-check alerts-rules-check alerts-smoke alert-relay-metrics-smoke alert-relay-failure-smoke alert-relay-retry-guardrail load-guardrail ws-guardrail perf-guardrail-lite e2e-connector-live e2e-connector-real
+	openapi-gen openapi-check release-check alerts-rules-check alerts-smoke alert-relay-metrics-smoke alert-relay-failure-smoke alert-relay-retry-guardrail load-guardrail ws-guardrail perf-guardrail-lite e2e-connector-live e2e-connector-real interview-guardrail
 
 doctor:
 	@echo "== docker ==" && docker version >/dev/null && echo "OK"
@@ -154,3 +154,6 @@ e2e-connector-live:
 
 e2e-connector-real:
 	$(PYTHON) tools/e2e_connector_live.py --provider sberjazz --require-report
+
+interview-guardrail:
+	$(PYTHON) tools/interview_regression_guardrail.py

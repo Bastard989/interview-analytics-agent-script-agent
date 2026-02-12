@@ -36,7 +36,15 @@ class ManualDeliveryRequest(BaseModel):
     recipients: list[str] = Field(default_factory=list)
     sender_account: str | None = None
     include_artifacts: list[str] = Field(
-        default_factory=lambda: ["report_json", "report_txt", "scorecard_json", "comparison_json"]
+        default_factory=lambda: [
+            "report_json",
+            "report_txt",
+            "scorecard_json",
+            "decision_json",
+            "comparison_json",
+            "calibration_json",
+            "senior_brief_txt",
+        ]
     )
     custom_message: str | None = Field(default=None, max_length=3000)
 

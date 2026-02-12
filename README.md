@@ -73,15 +73,19 @@ API для UI/интеграций:
 - `GET /v1/meetings`
 - `GET /v1/meetings/{meeting_id}/artifacts`
 - `POST /v1/meetings/{meeting_id}/artifacts/rebuild`
-- `GET /v1/meetings/{meeting_id}/artifact?kind=raw|clean|report|scorecard|comparison|calibration&fmt=txt|json`
+- `GET /v1/meetings/{meeting_id}/artifact?kind=raw|clean|report|scorecard|comparison|calibration|decision|brief&fmt=txt|json|md|html|pdf`
 - `GET /v1/meetings/{meeting_id}/report`
 - `GET /v1/meetings/{meeting_id}/report/text`
 - `POST /v1/meetings/{meeting_id}/report/rebuild`
 - `GET /v1/meetings/{meeting_id}/scorecard`
+- `GET /v1/meetings/{meeting_id}/decision`
+- `GET /v1/meetings/{meeting_id}/senior-brief`
+- `POST /v1/meetings/{meeting_id}/senior-brief/rebuild`
 - `POST /v1/analysis/comparison`
 - `GET /v1/analysis/comparison?meeting_ids=m1,m2,m3`
 - `POST /v1/meetings/{meeting_id}/calibration/review`
 - `GET /v1/meetings/{meeting_id}/calibration`
+- `GET /v1/analysis/rubric-weights`
 - `GET /v1/delivery/accounts`
 - `POST /v1/meetings/{meeting_id}/delivery/manual`
 - `GET /v1/interview-scenarios` (placeholder под будущие сценарии/примеры интервью)
@@ -105,12 +109,17 @@ API для UI/интеграций:
 - `POST /v1/meetings/{meeting_id}/calibration/review`
 - `GET /v1/meetings/{meeting_id}/calibration`
 - сохраняет `calibration_reviews.json` и `calibration_report.json`
+- авто-тюнинг весов rubric включён через calibration feedback (управляется `SCORECARD_*` переменными)
 
 Ручная отправка с выбором нескольких email и sender account:
 - авто-рассылка в worker delivery отключена по умолчанию (`DELIVERY_MANUAL_MODE_ONLY=true`)
 - для ручной отправки:
   1) `GET /v1/delivery/accounts`
   2) `POST /v1/meetings/{meeting_id}/delivery/manual` с `recipients[]` и `sender_account`
+
+Decision engine и senior brief:
+- `report.decision` формирует `hire|hold|no_hire` по порогам (`DECISION_*` переменные)
+- для сеньоров автоматически собираются `senior_brief.txt/.md/.html` (+ `.pdf` при наличии `reportlab`)
 
 ## E2E Smoke
 

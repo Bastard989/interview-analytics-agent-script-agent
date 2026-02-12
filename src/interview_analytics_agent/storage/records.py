@@ -66,7 +66,12 @@ def list_artifacts(meeting_id: str) -> dict[str, bool]:
         "report_json": exists(meeting_id, "report.json"),
         "report_txt": exists(meeting_id, "report.txt"),
         "scorecard_json": exists(meeting_id, "scorecard.json"),
+        "decision_json": exists(meeting_id, "decision.json"),
         "comparison_json": exists(meeting_id, "comparison.json"),
         "calibration_json": exists(meeting_id, "calibration_report.json"),
+        "senior_brief_txt": exists(meeting_id, "senior_brief.txt"),
+        "senior_brief_md": exists(meeting_id, "senior_brief.md"),
+        "senior_brief_html": exists(meeting_id, "senior_brief.html"),
+        "senior_brief_pdf": exists(meeting_id, "senior_brief.pdf"),
         "delivery_manual_log": exists(meeting_id, "delivery_manual_log.jsonl"),
     }

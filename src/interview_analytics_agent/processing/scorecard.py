@@ -11,13 +11,14 @@ from __future__ import annotations
 from typing import Any
 
 from interview_analytics_agent.processing.pii import mask_pii
+from interview_analytics_agent.processing.rubric_tuning import load_weight_overrides
 
 DEFAULT_RUBRIC_ID = "interview_core_v1"
 SCALE_MIN = 1.0
 SCALE_MAX = 5.0
 
 
-_RUBRIC: list[dict[str, Any]] = [
+BASE_RUBRIC: list[dict[str, Any]] = [
     {
         "id": "problem_solving",
         "title": "Problem Solving",
@@ -125,6 +126,46 @@ _RUBRIC: list[dict[str, Any]] = [
         ),
     },
 ]
+
+
+def _normalize_weights(raw: dict[str, float]) -> dict[str, float]:
+    normalized = {k: max(0.0, float(v)) for k, v in raw.items()}
+    total = sum(normalized.values()) or 1.0
+    return {k: normalized[k] / total for k in normalized}
+
+
+def _effective_weights(context: dict[str, Any] | None, overrides: dict[str, Any] | None) -> dict[str, float]:
+    base = {item["id"]: float(item["weight"]) for item in BASE_RUBRIC}
+    if not overrides:
+        return _normalize_weights(base)
+
+    global_overrides = overrides.get("global") or {}
+    selected: dict[str, float] = {}
+    for cid, weight in global_overrides.items():
+        try:
+            selected[str(cid)] = float(weight)
+        except Exception:
+            continue
+
+    position = str((context or {}).get("position") or (context or {}).get("role") or "").strip()
+    by_position = overrides.get("by_position") or {}
+    if position and isinstance(by_position, dict):
+        scoped = by_position.get(position) or {}
+        if isinstance(scoped, dict):
+            for cid, weight in scoped.items():
+                try:
+                    selected[str(cid)] = float(weight)
+                except Exception:
+                    continue
+
+    if not selected:
+        return _normalize_weights(base)
+
+    merged = dict(base)
+    for cid, weight in selected.items():
+        if cid in merged:
+            merged[cid] = weight
+    return _normalize_weights(merged)
 
 
 def _norm(text: str) -> str:
@@ -240,24 +281,27 @@ def build_interview_scorecard(
     transcript_segments: list[dict[str, Any]] | None = None,
     rubric_id: str = DEFAULT_RUBRIC_ID,
 ) -> dict[str, Any]:
+    context = dict(meeting_context or {})
     rows = _segment_rows(enhanced_transcript=enhanced_transcript, transcript_segments=transcript_segments)
     penalty = _risk_penalty(report)
+    overrides = load_weight_overrides()
+    weights = _effective_weights(context, overrides)
 
     competencies: list[dict[str, Any]] = []
     weighted_sum = 0.0
     weighted_total = 0.0
     confidence_weighted = 0.0
 
-    for item in _RUBRIC:
+    for item in BASE_RUBRIC:
         evidence, hits = _collect_evidence(rows=rows, keywords=item["keywords"])
         score, confidence, status = _competency_score(
             evidence_count=len(evidence),
             keyword_hits=hits,
             risk_penalty=penalty,
         )
+        weight = float(weights.get(item["id"], item["weight"]))
 
         if score is not None:
-            weight = float(item["weight"])
             weighted_sum += score * weight
             weighted_total += weight
             confidence_weighted += confidence * weight
@@ -266,7 +310,7 @@ def build_interview_scorecard(
             {
                 "competency_id": item["id"],
                 "title": item["title"],
-                "weight": item["weight"],
+                "weight": round(weight, 6),
                 "status": status,
                 "score": score,
                 "confidence": confidence,
@@ -281,8 +325,6 @@ def build_interview_scorecard(
     )
 
     insufficient = [c["competency_id"] for c in competencies if c["status"] != "ok"]
-    context = dict(meeting_context or {})
-
     return {
         "version": "v1",
         "rubric_id": rubric_id,
@@ -294,6 +336,7 @@ def build_interview_scorecard(
         "overall_confidence": overall_confidence,
         "insufficient_evidence_competencies": insufficient,
         "competencies": competencies,
+        "weights_source": "adaptive_overrides" if overrides else "default",
         "report_goal": "objective_comparable_summary",
         "report_audience": "senior_interviewers",
     }

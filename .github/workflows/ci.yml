@@ -116,6 +116,12 @@ jobs:
       - name: Cycle (strict, no LLM)
         run: make cycle
 
+      - name: Interview regression guardrail
+        run: |
+          docker compose exec -T api-gateway python tools/interview_regression_guardrail.py \
+            --fixtures-dir tests/fixtures/interview_regression \
+            --report-json reports/interview_regression_guardrail_ci.json
+
 
 
       - name: OpenAPI contract check
@@ -221,6 +227,7 @@ jobs:
             reports/*.md
             reports/realtime_load_guardrail_ci.json
             reports/ws_contours_guardrail_ci.json
+            reports/interview_regression_guardrail_ci.json
           if-no-files-found: ignore
 
       - name: Compose down

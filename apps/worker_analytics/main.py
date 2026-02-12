@@ -29,7 +29,7 @@ from interview_analytics_agent.queue.dispatcher import Q_ANALYTICS, enqueue_deli
 from interview_analytics_agent.queue.retry import requeue_with_backoff
 from interview_analytics_agent.queue.streams import ack_task, consumer_name, read_task
 from interview_analytics_agent.services.readiness_service import enforce_startup_readiness
-from interview_analytics_agent.storage import records
+from interview_analytics_agent.services.report_artifacts import write_report_artifacts
 from interview_analytics_agent.storage.db import db_session
 from interview_analytics_agent.storage.repositories import (
     MeetingRepository,
@@ -92,12 +92,12 @@ def run_loop() -> None:
                         m.status = PipelineStatus.processing
                         mrepo.save(m)
 
-                records.write_text(meeting_id, "raw.txt", raw)
-                records.write_text(meeting_id, "clean.txt", enhanced)
-                records.write_json(meeting_id, "report.json", report)
-                scorecard = report.get("scorecard")
-                if isinstance(scorecard, dict):
-                    records.write_json(meeting_id, "scorecard.json", scorecard)
+                write_report_artifacts(
+                    meeting_id=meeting_id,
+                    raw_text=raw,
+                    clean_text=enhanced,
+                    report=report,
+                )
 
                 enqueue_delivery(meeting_id=meeting_id)
             should_ack = True

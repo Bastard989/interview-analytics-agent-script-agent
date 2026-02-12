@@ -16,8 +16,13 @@ _ARTIFACT_NAME_MAP = {
     "report_json": "report.json",
     "report_txt": "report.txt",
     "scorecard_json": "scorecard.json",
+    "decision_json": "decision.json",
     "comparison_json": "comparison.json",
     "calibration_json": "calibration_report.json",
+    "senior_brief_txt": "senior_brief.txt",
+    "senior_brief_md": "senior_brief.md",
+    "senior_brief_html": "senior_brief.html",
+    "senior_brief_pdf": "senior_brief.pdf",
 }
 
 _ARTIFACT_MIME_MAP = {
@@ -26,8 +31,13 @@ _ARTIFACT_MIME_MAP = {
     "report.json": "application/json",
     "report.txt": "text/plain",
     "scorecard.json": "application/json",
+    "decision.json": "application/json",
     "comparison.json": "application/json",
     "calibration_report.json": "application/json",
+    "senior_brief.txt": "text/plain",
+    "senior_brief.md": "text/markdown",
+    "senior_brief.html": "text/html",
+    "senior_brief.pdf": "application/pdf",
 }
 
 

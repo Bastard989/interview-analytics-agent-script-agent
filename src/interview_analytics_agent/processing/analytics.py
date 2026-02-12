@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from interview_analytics_agent.common.config import get_settings
+from interview_analytics_agent.processing.decision import build_decision_summary
 from interview_analytics_agent.processing.scorecard import build_interview_scorecard
 
 
@@ -50,7 +51,16 @@ def _with_scorecard(
         transcript_segments=transcript_segments,
     )
     out = dict(base_report)
+    decision = build_decision_summary(scorecard=scorecard, report=out)
     out["scorecard"] = scorecard
+    out["decision"] = decision
+    if not str(out.get("recommendation") or "").strip():
+        if decision["decision"] == "hire":
+            out["recommendation"] = "Proceed with hire discussion"
+        elif decision["decision"] == "hold":
+            out["recommendation"] = "Run targeted follow-up interview"
+        else:
+            out["recommendation"] = "Do not proceed for this role"
     out["objective_mode"] = True
     out["report_goal"] = "objective_comparable_summary"
     out["report_audience"] = "senior_interviewers"
