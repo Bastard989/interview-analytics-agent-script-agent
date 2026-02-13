@@ -3,11 +3,17 @@ SHELL := /bin/bash
 COMPOSE ?= docker compose
 API_SERVICE ?= api-gateway
 PYTHON ?= python3
+VENV_PYTHON ?= .venv/bin/python
+API_HOST ?= 127.0.0.1
+API_PORT ?= 8010
+URL ?=
+DURATION_SEC ?= 900
 
 .PHONY: \
 	doctor up down ps logs migrate smoke reset-db \
 	compose-up compose-down \
 	fmt lint fix test storage-smoke quick-record \
+	setup-local api-local agent-run agent-start agent-status agent-stop \
 	cycle cycle-autofix \
 	openapi-gen openapi-check release-check alerts-rules-check alerts-smoke alert-relay-metrics-smoke alert-relay-failure-smoke alert-relay-retry-guardrail load-guardrail ws-guardrail perf-guardrail-lite e2e-connector-live e2e-connector-real interview-guardrail
 
@@ -67,6 +73,33 @@ storage-smoke:
 quick-record:
 	@test -n "$(URL)" || (echo "Usage: make quick-record URL='https://meeting-link'"; exit 1)
 	$(PYTHON) scripts/quick_record_meeting.py --url "$(URL)"
+
+setup-local:
+	./scripts/setup_local.sh
+
+api-local:
+	@test -x "$(VENV_PYTHON)" || (echo "Run 'make setup-local' first"; exit 1)
+	PYTHONPATH="$(PWD):$(PWD)/src" \
+	APP_ENV=dev \
+	AUTH_MODE=api_key \
+	API_KEYS=dev-user-key \
+	SERVICE_API_KEYS=dev-service-key \
+	QUEUE_MODE=inline \
+	$(VENV_PYTHON) -m uvicorn apps.api_gateway.main:app --host $(API_HOST) --port $(API_PORT) --reload
+
+agent-run:
+	@test -n "$(URL)" || (echo "Usage: make agent-run URL='https://meeting-link' [DURATION_SEC=900]"; exit 1)
+	./scripts/agent.sh run "$(URL)" "$(DURATION_SEC)"
+
+agent-start:
+	@test -n "$(URL)" || (echo "Usage: make agent-start URL='https://meeting-link' [DURATION_SEC=900]"; exit 1)
+	./scripts/agent.sh start "$(URL)" "$(DURATION_SEC)"
+
+agent-status:
+	./scripts/agent.sh status
+
+agent-stop:
+	./scripts/agent.sh stop
 
 cycle:
 	$(PYTHON) tools/ci_cycle.py

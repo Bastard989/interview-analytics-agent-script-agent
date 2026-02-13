@@ -5,68 +5,127 @@
 Production-ориентированный backend для транскрибации и аналитики интервью.
 Фокус текущей версии: объективные и сравнимые сводки для сеньоров, которые не присутствовали на интервью.
 
-## Быстрый старт (dev)
+## Для каждого: что это за агент
 
-- `docker compose up -d --build`
-- Проверка API: `http://localhost:8010/health`
-- Метрики: `http://localhost:8010/metrics`
+Агент подключается к интервью/встрече по ссылке, записывает звук, делает расшифровку и формирует понятные отчеты для сеньоров, которые не были на звонке.
 
-Минимальный `.env` для старта (остальное имеет безопасные default):
-- `APP_ENV=dev`
-- `AUTH_MODE=api_key`
-- `API_KEYS=dev-user-key`
-- `SERVICE_API_KEYS=dev-service-key`
+Что умеет:
+- записывать встречу в `mp3`;
+- делать транскрипт (опционально);
+- собирать аналитические отчеты (`report`, `scorecard`, `decision`, `senior brief`);
+- сравнивать нескольких кандидатов между собой (`comparison`);
+- отправлять отчеты вручную на несколько email.
 
-## Quick Recorder (agent2)
+Что ты получаешь на выходе:
+- `<timestamp>.mp3`;
+- `<timestamp>.txt` (если включена транскрибация);
+- `<timestamp>.report.json`;
+- `<timestamp>.report.txt`.
 
-Быстрый режим записи видеовстречи в один скрипт:
-- открывает ссылку встречи;
-- пишет системный звук сегментами с overlap;
-- собирает финальный `mp3` без дублей по overlap (без наивной склейки);
-- опционально делает локальную `whisper`-транскрибацию;
-- по умолчанию строит локальный аналитический `report.json` + `report.txt` (без обязательного API);
-- опционально отправляет запись в `/v1` пайплайн (start -> chunk -> report);
-- опционально отправляет summary email через ваш SMTP.
-- перед стартом запускает preflight (`ffmpeg`, аудио-девайс, права записи, свободное место).
+## Быстрый старт (локально, без длинных команд)
 
-Базовый запуск:
-- `python3 scripts/quick_record_meeting.py --url "https://..."`
+Открой терминал в корне проекта:
 
-Авто-стоп через 10 минут + транскрипция:
-- `python3 scripts/quick_record_meeting.py --url "https://..." --duration-sec 600 --transcribe`
+```bash
+cd "/Users/kirill/Documents/New project/interview-analytics-agent-prod2"
+```
 
-Загрузка в API пайплайн агента:
-- `python3 scripts/quick_record_meeting.py --url "https://..." --upload-to-agent --agent-api-key dev-user-key`
+1. Подготовка окружения и зависимостей:
 
-Через Makefile:
-- `make quick-record URL="https://..."`
+```bash
+make setup-local
+```
 
-Script-first orchestration (логика как в проекте коллеги, но с улучшениями):
-- foreground:  
-  `python3 scripts/meeting_agent.py run --url "https://..." --duration-sec 900 --transcribe`
-- background start:  
-  `python3 scripts/meeting_agent.py start --url "https://..." --duration-sec 900 --transcribe`
-- status:  
-  `python3 scripts/meeting_agent.py status --verbose`
-- stop:  
-  `python3 scripts/meeting_agent.py stop`
+2. Запуск API (в отдельном терминале):
 
-Файлы результата после скрипта:
-- `<timestamp>.mp3`
-- `<timestamp>.txt` (если `--transcribe`)
-- `<timestamp>.report.json` и `<timestamp>.report.txt` (если не отключен `--no-local-report`)
+```bash
+make api-local
+```
 
-Новые опции quick/script-first:
-- `--input-device "BlackHole 2ch"` — явный выбор устройства записи.
-- `--preflight-min-free-mb 512` — минимальный порог свободного места.
-- `--agent-http-retries 2 --agent-http-backoff-sec 0.75` — retry/backoff при upload в API.
-- для фонового режима stop теперь сначала делает graceful-stop через stop-flag и только потом fallback на сигналы.
+3. Запись встречи (в другом терминале):
 
-Web UI для этого агента:
-- Открой `http://localhost:8010/`
-- В UI доступны: start/stop quick recording, статус сигнала API, список встреч и результаты.
+```bash
+make agent-run URL="https://your-meeting-link" DURATION_SEC=900
+```
 
-API для UI/интеграций:
+4. Фоновый режим:
+
+```bash
+make agent-start URL="https://your-meeting-link" DURATION_SEC=900
+make agent-status
+make agent-stop
+```
+
+## Примеры использования
+
+Foreground (самый простой путь):
+
+```bash
+make agent-run URL="https://your-meeting-link" DURATION_SEC=600
+```
+
+С явным устройством записи:
+
+```bash
+INPUT_DEVICE="BlackHole 2ch" make agent-run URL="https://your-meeting-link" DURATION_SEC=900
+```
+
+Фоновый запуск с upload в локальный API:
+
+```bash
+AGENT_BASE_URL="http://127.0.0.1:8010" AGENT_API_KEY="dev-user-key" make agent-start URL="https://your-meeting-link" DURATION_SEC=1200
+```
+
+Короткий wrapper вместо `make`:
+
+```bash
+./scripts/agent.sh run "https://your-meeting-link" 900
+./scripts/agent.sh start "https://your-meeting-link" 900
+./scripts/agent.sh status
+./scripts/agent.sh stop
+```
+
+## Техническое описание (для инженеров)
+
+### Script-first контур
+
+Основные точки входа:
+- `scripts/setup_local.sh` — bootstrap локального окружения;
+- `scripts/agent.sh` — короткий CLI-wrapper;
+- `scripts/meeting_agent.py` — orchestration `run/start/status/stop`;
+- `scripts/quick_record_meeting.py` — ядро записи/сборки артефактов.
+
+Последовательность выполнения:
+1. Preflight-проверки (`ffmpeg`, доступность устройства, права записи, свободное место).
+2. Запись сегментов с overlap.
+3. Корректная финализация в единый `mp3` без дублей по overlap.
+4. Опциональная локальная транскрибация (`faster-whisper`).
+5. Локальная аналитика (`report.json` + `report.txt`).
+6. Опциональная загрузка в API-пайплайн (`/v1`).
+7. Опциональная ручная email-доставка артефактов.
+
+Graceful-stop в background-режиме:
+- `stop` сначала ставит stop-flag и ждёт корректную финализацию;
+- только при таймауте отправляет сигнал процессу.
+
+### Аналитика и сравнимость
+
+В `report` используются:
+- `scorecard` (матрица компетенций 1..5);
+- evidence-first подход (ссылки на фрагменты/спикера/позицию);
+- `decision` (`hire|hold|no_hire`) по порогам `DECISION_*`;
+- `insufficient_evidence_competencies` для прозрачности недостатка данных.
+
+Межкандидатное сравнение:
+- `POST /v1/analysis/comparison` формирует ranking и competency matrix.
+
+Калибровка сеньорами:
+- `POST /v1/meetings/{meeting_id}/calibration/review`;
+- `GET /v1/meetings/{meeting_id}/calibration`;
+- авто-подстройка весов через `SCORECARD_*`.
+
+### API для script/integration
+
 - `POST /v1/quick-record/start`
 - `GET /v1/quick-record/status`
 - `POST /v1/quick-record/stop`
@@ -90,36 +149,8 @@ API для UI/интеграций:
 - `POST /v1/meetings/{meeting_id}/delivery/manual`
 - `GET /v1/interview-scenarios` (placeholder под будущие сценарии/примеры интервью)
 
-Локальный runtime режим без Redis workers:
-- `QUEUE_MODE=inline` включает синхронную обработку chunk -> STT -> enhancer -> report в API процессе.
-
-### Объективная и сравнимая аналитика
-
-`report` теперь содержит:
-- `scorecard` (единая матрица компетенций 1..5)
-- evidence-first поля по компетенциям (цитаты/seq/start/end/speaker)
-- `insufficient_evidence_competencies` для прозрачной диагностики слабых мест данных
-
-Сравнение кандидатов:
-- `POST /v1/analysis/comparison` принимает список `meeting_ids`
-- возвращает ranking + competency matrix
-- сохраняет `comparison.json` в артефакты выбранных встреч
-
-Калибровка agent vs senior:
-- `POST /v1/meetings/{meeting_id}/calibration/review`
-- `GET /v1/meetings/{meeting_id}/calibration`
-- сохраняет `calibration_reviews.json` и `calibration_report.json`
-- авто-тюнинг весов rubric включён через calibration feedback (управляется `SCORECARD_*` переменными)
-
-Ручная отправка с выбором нескольких email и sender account:
-- авто-рассылка в worker delivery отключена по умолчанию (`DELIVERY_MANUAL_MODE_ONLY=true`)
-- для ручной отправки:
-  1) `GET /v1/delivery/accounts`
-  2) `POST /v1/meetings/{meeting_id}/delivery/manual` с `recipients[]` и `sender_account`
-
-Decision engine и senior brief:
-- `report.decision` формирует `hire|hold|no_hire` по порогам (`DECISION_*` переменные)
-- для сеньоров автоматически собираются `senior_brief.txt/.md/.html` (+ `.pdf` при наличии `reportlab`)
+Локальный runtime без Redis workers:
+- `QUEUE_MODE=inline` включает синхронную обработку `chunk -> STT -> enhancer -> report` в API-процессе.
 
 ## E2E Smoke
 
